@@ -1,0 +1,242 @@
+{
+  "id": "2026-06-13-143728",
+  "generated_at": "2026-06-13T06:37:28.735803055Z",
+  "language": "zh",
+  "pages": [
+    {
+      "slug": "1-xiang-mu-gai-shu",
+      "title": "项目概述",
+      "file": "1-xiang-mu-gai-shu.md",
+      "section": "快速入门",
+      "level": "..."
+    },
+    {
+      "slug": "2-kuai-su-bu-shu-zhi-nan",
+      "title": "快速部署指南",
+      "file": "2-kuai-su-bu-shu-zhi-nan.md",
+      "section": "快速入门",
+      "level": "..."
+    },
+    {
+      "slug": "3-consumer-jiao-se-bu-shu",
+      "title": "Consumer 角色部署",
+      "file": "3-consumer-jiao-se-bu-shu.md",
+      "section": "快速入门",
+      "group": "部署角色入门",
+      "level": "..."
+    },
+    {
+      "slug": "4-provider-jiao-se-bu-shu",
+      "title": "Provider 角色部署",
+      "file": "4-provider-jiao-se-bu-shu.md",
+      "section": "快速入门",
+      "group": "部署角色入门",
+      "level": "..."
+    },
+    {
+      "slug": "5-consumer-provider-shuang-jiao-se-bu-shu",
+      "title": "Consumer + Provider 双角色部署",
+      "file": "5-consumer-provider-shuang-jiao-se-bu-shu.md",
+      "section": "快速入门",
+      "group": "部署角色入门",
+      "level": "..."
+    },
+    {
+      "slug": "6-operator-shu-ju-kong-jian-zhi-li-bu-shu",
+      "title": "Operator（数据空间治理）部署",
+      "file": "6-operator-shu-ju-kong-jian-zhi-li-bu-shu.md",
+      "section": "快速入门",
+      "group": "部署角色入门",
+      "level": "..."
+    },
+    {
+      "slug": "7-zu-jian-zong-lan-yu-mo-kuai-zhi-ze",
+      "title": "组件总览与模块职责",
+      "file": "7-zu-jian-zong-lan-yu-mo-kuai-zhi-ze.md",
+      "section": "核心架构",
+      "level": "..."
+    },
+    {
+      "slug": "8-helm-umbrella-chart-yi-lai-tu-pu",
+      "title": "Helm Umbrella Chart 依赖图谱",
+      "file": "8-helm-umbrella-chart-yi-lai-tu-pu.md",
+      "section": "核心架构",
+      "level": "..."
+    },
+    {
+      "slug": "9-oid4vc-ren-zheng-kuang-jia-vcverifier-trusted-issuers-list",
+      "title": "OID4VC 认证框架（VCVerifier、Trusted Issuers List）",
+      "file": "9-oid4vc-ren-zheng-kuang-jia-vcverifier-trusted-issuers-list.md",
+      "section": "核心架构",
+      "group": "身份与信任框架",
+      "level": "..."
+    },
+    {
+      "slug": "10-h2m-fu-wu-diao-yong-liu-cheng",
+      "title": "H2M 服务调用流程",
+      "file": "10-h2m-fu-wu-diao-yong-liu-cheng.md",
+      "section": "核心架构",
+      "group": "身份与信任框架",
+      "level": "..."
+    },
+    {
+      "slug": "11-m2m-fu-wu-diao-yong-liu-cheng",
+      "title": "M2M 服务调用流程",
+      "file": "11-m2m-fu-wu-diao-yong-liu-cheng.md",
+      "section": "核心架构",
+      "group": "身份与信任框架",
+      "level": "..."
+    },
+    {
+      "slug": "12-odrl-shou-quan-kuang-jia-apisix-opa-odrl-pap",
+      "title": "ODRL 授权框架（APISIX + OPA + ODRL-PAP）",
+      "file": "12-odrl-shou-quan-kuang-jia-apisix-opa-odrl-pap.md",
+      "section": "核心架构",
+      "group": "授权与策略框架",
+      "level": "..."
+    },
+    {
+      "slug": "13-tm-forum-open-apis-he-tong-guan-li-liu-cheng",
+      "title": "TM Forum Open APIs 合同管理流程",
+      "file": "13-tm-forum-open-apis-he-tong-guan-li-liu-cheng.md",
+      "section": "核心架构",
+      "group": "产品目录与合同管理",
+      "level": "..."
+    },
+    {
+      "slug": "14-dsp-yu-edc-ji-cheng-jia-gou",
+      "title": "DSP 与 EDC 集成架构",
+      "file": "14-dsp-yu-edc-ji-cheng-jia-gou.md",
+      "section": "核心架构",
+      "group": "数据空间协议（DSP）",
+      "level": "..."
+    },
+    {
+      "slug": "15-catalog-he-tong-xie-shang-chuan-shu-liu-cheng-xie-yi",
+      "title": "Catalog / 合同协商 / 传输流程协议",
+      "file": "15-catalog-he-tong-xie-shang-chuan-shu-liu-cheng-xie-yi.md",
+      "section": "核心架构",
+      "group": "数据空间协议（DSP）",
+      "level": "..."
+    },
+    {
+      "slug": "16-values-yaml-quan-ju-pei-zhi-can-kao",
+      "title": "values.yaml 全局配置参考",
+      "file": "16-values-yaml-quan-ju-pei-zhi-can-kao.md",
+      "section": "配置与定制",
+      "level": "..."
+    },
+    {
+      "slug": "17-keycloak-yu-oid4vci-ping-zheng-qian-fa-pei-zhi",
+      "title": "Keycloak 与 OID4VCI 凭证签发配置",
+      "file": "17-keycloak-yu-oid4vci-ping-zheng-qian-fa-pei-zhi.md",
+      "section": "配置与定制",
+      "level": "..."
+    },
+    {
+      "slug": "18-shu-zi-qian-bao-jian-rong-xing-yu-ji-cheng",
+      "title": "数字钱包兼容性与集成",
+      "file": "18-shu-zi-qian-bao-jian-rong-xing-yu-ji-cheng.md",
+      "section": "配置与定制",
+      "level": "..."
+    },
+    {
+      "slug": "19-secret-guan-li-yu-sheng-chan-huan-jing-an-quan",
+      "title": "Secret 管理与生产环境安全",
+      "file": "19-secret-guan-li-yu-sheng-chan-huan-jing-an-quan.md",
+      "section": "配置与定制",
+      "level": "..."
+    },
+    {
+      "slug": "20-gaia-x-xin-ren-kuang-jia-ji-cheng",
+      "title": "Gaia-X 信任框架集成",
+      "file": "20-gaia-x-xin-ren-kuang-jia-ji-cheng.md",
+      "section": "集成指南",
+      "level": "..."
+    },
+    {
+      "slug": "21-marketplace-portal-bae-ji-cheng",
+      "title": "Marketplace Portal（BAE）集成",
+      "file": "21-marketplace-portal-bae-ji-cheng.md",
+      "section": "集成指南",
+      "level": "..."
+    },
+    {
+      "slug": "22-central-marketplace-ji-cheng",
+      "title": "Central Marketplace 集成",
+      "file": "22-central-marketplace-ji-cheng.md",
+      "section": "集成指南",
+      "level": "..."
+    },
+    {
+      "slug": "23-aws-garnet-kuang-jia-ji-cheng",
+      "title": "AWS Garnet 框架集成",
+      "file": "23-aws-garnet-kuang-jia-ji-cheng.md",
+      "section": "集成指南",
+      "level": "..."
+    },
+    {
+      "slug": "24-opentelemetry-fen-bu-shi-zhui-zong-jia-gou",
+      "title": "OpenTelemetry 分布式追踪架构",
+      "file": "24-opentelemetry-fen-bu-shi-zhui-zong-jia-gou.md",
+      "section": "可观测性",
+      "level": "..."
+    },
+    {
+      "slug": "25-grafana-tempo-ji-qun-nei-bu-zhui-zong-hou-duan",
+      "title": "Grafana Tempo 集群内部追踪后端",
+      "file": "25-grafana-tempo-ji-qun-nei-bu-zhui-zong-hou-duan.md",
+      "section": "可观测性",
+      "level": "..."
+    },
+    {
+      "slug": "26-ge-zu-jian-otel-jie-ru-shuo-ming",
+      "title": "各组件 OTEL 接入说明",
+      "file": "26-ge-zu-jian-otel-jie-ru-shuo-ming.md",
+      "section": "可观测性",
+      "level": "..."
+    },
+    {
+      "slug": "27-helm-lint-yu-mo-ban-xuan-ran-yan-zheng",
+      "title": "Helm Lint 与模板渲染验证",
+      "file": "27-helm-lint-yu-mo-ban-xuan-ran-yan-zheng.md",
+      "section": "测试与质量保障",
+      "level": "..."
+    },
+    {
+      "slug": "28-helm-unittest-tao-jian",
+      "title": "Helm Unittest 套件",
+      "file": "28-helm-unittest-tao-jian.md",
+      "section": "测试与质量保障",
+      "level": "..."
+    },
+    {
+      "slug": "29-k3s-ji-cheng-ce-shi-maven-cucumber",
+      "title": "k3s 集成测试（Maven + Cucumber）",
+      "file": "29-k3s-ji-cheng-ce-shi-maven-cucumber.md",
+      "section": "测试与质量保障",
+      "level": "..."
+    },
+    {
+      "slug": "30-8-x-ban-ben-shuo-ming",
+      "title": "8.x 版本说明",
+      "file": "30-8-x-ban-ben-shuo-ming.md",
+      "section": "版本演进",
+      "level": "..."
+    },
+    {
+      "slug": "31-9-x-ban-ben-shuo-ming-po-pi-xing-bian-geng",
+      "title": "9.x 版本说明（破坏性变更）",
+      "file": "31-9-x-ban-ben-shuo-ming-po-pi-xing-bian-geng.md",
+      "section": "版本演进",
+      "level": "..."
+    },
+    {
+      "slug": "32-10-x-ban-ben-shuo-ming-keycloak-qian-yi-yu-oid4vci-zhong-xie",
+      "title": "10.x 版本说明（Keycloak 迁移与 OID4VCI 重写）",
+      "file": "32-10-x-ban-ben-shuo-ming-keycloak-qian-yi-yu-oid4vci-zhong-xie.md",
+      "section": "版本演进",
+      "level": "..."
+    }
+  ]
+}

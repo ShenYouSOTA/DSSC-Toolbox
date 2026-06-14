@@ -1,0 +1,17 @@
+# macOS
+__MACOSX/
+.DS_Store
+._*
+
+# Windows
+:Zone.Identifier
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# Temp
+*.tmp
+*.bak
