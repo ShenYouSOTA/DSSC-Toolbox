@@ -145,7 +145,8 @@ kubectl create secret generic keystore-password \
     --from-literal=password=changeit -n consumer
 helm install consumer charts/data-space-connector \
     -f k3s/consumer.yaml \
-    --namespace consumer --create-namespace --wait --timeout 10m
+    --namespace consumer --create-namespace --wait --timeout 10m \
+    --set decentralizedIam.vcAuthentication.postgres-operator.enabled=false
 ```
 
 ### 3.3 Ingress 配置
@@ -392,6 +393,196 @@ curl -k https://keycloak-provider.127.0.0.1.nip.io/realms/test-realm
 
 ---
 
+### 4.11 cert-manager CA Secret 缺失
+
+**现象：** Provider/Consumer 部署后，所有 Certificate 资源处于 `Issuing` 或 `False` 状态，Secret 未创建；`kubectl describe certificate` 显示 `secret ca-secret not found` 或 issuer 不存在。
+
+**根因：** Chart 中 Certificate 引用了 `spec.issuerRef.name: ca-issuer`，而 `ca-issuer` 需要读取名为 `ca-secret` 的 CA 根证书 Secret。cert-manager 默认只安装了 `selfsigned-issuer`，没有生成对应的 CA 证书和 CA issuer。
+
+**解决方案：** 重新创建自签名 CA 证书链：
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-issuer
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ca-cert
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: fiware-dsc-ca
+  secretName: ca-secret
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: ca-issuer
+spec:
+  ca:
+    secretName: ca-secret
+EOF
+```
+
+**验证命令：**
+```bash
+kubectl get clusterissuer selfsigned-issuer ca-issuer
+kubectl get secret ca-secret -n cert-manager
+kubectl get certificate -A
+```
+
+---
+
+### 4.12 MongoDB ServiceAccount 缺失
+
+**现象：** `mongodb-0` Pod 一直 `Pending`，事件显示 `serviceaccount "mongodb-database" not found`。
+
+**根因：** `managedMongo` StatefulSet 模板显式设置了 `serviceAccountName: mongodb-database`，但 Chart 没有自动创建该 ServiceAccount。
+
+**解决方案：**
+```bash
+kubectl create serviceaccount mongodb-database -n provider
+```
+
+**验证命令：**
+```bash
+kubectl get serviceaccount mongodb-database -n provider
+kubectl get pods -n provider | grep mongodb
+```
+
+---
+
+### 4.13 MongoDB Agent 镜像拉取失败
+
+**现象：** `mongodb-0` Pod 中 `mongodb-agent` container 处于 `ImagePullBackOff`，镜像 `docker.io/mongodb/mongodb-agent:12.0.15.7648-1` 无法拉取；或拉取后报错 `manifest unknown`。
+
+**根因：** 该镜像 tag 在 Docker Hub 不存在/已移除，且 quay.io 上的替代 tag 命名不同。mongodb-agent 是 MongoDB Community Operator / managedMongo 用来执行自动化任务的 sidecar。
+
+**解决方案：** 如果本地已有 `quay.io/mongodb/mongodb-agent-ubi:<tag>`，可替换 StatefulSet 的镜像：
+```bash
+# 方案 1：直接修改 StatefulSet 镜像
+kubectl set image statefulset/mongodb \
+  mongodb-agent=quay.io/mongodb/mongodb-agent-ubi:108.0.6.8796-1 \
+  -n provider
+
+# 方案 2：在 provider.yaml 中指定 mongodb-agent 镜像
+managedMongo:
+  image: "mongodb/mongodb-agent:12.0.15.7648-1"  # 若无法拉取，需手动导入或替换
+```
+
+> **注意：** 替换后 `mongodb-0` 可能显示 `1/2 Running`，但 mongod 本身健康，不影响 demo 运行。
+
+**验证命令：**
+```bash
+kubectl describe pod mongodb-0 -n provider | grep -A5 "Failed to pull image"
+kubectl get pod mongodb-0 -n provider
+```
+
+---
+
+### 4.14 MongoDB 认证机制不匹配（BAE charging / logic proxy）
+
+**现象：** `provider-biz-ecosystem-charging-backend` 或 `provider-biz-ecosystem-logic-proxy` Pod 反复 `CrashLoopBackOff`，日志显示 `Authentication failed`、`SCRAM-SHA-1 authentication failed` 或 `UserNotFound: Could not find user "charging"@charging_db`。
+
+**根因：**
+1. BAE 组件默认使用 `SCRAM-SHA-1`，但 managedMongo 只启用 `SCRAM-SHA-256`。
+2. Chart 没有自动创建 `charging` 和 `belp` 两个 MongoDB 用户。
+
+**解决方案：**
+1. 进入 `mongodb-0` 容器，以管理员身份连接 mongod 并创建用户：
+```bash
+kubectl exec -it mongodb-0 -n provider -c mongod -- mongosh \
+  "mongodb://root:<password>@localhost:27017/admin?authSource=admin" \
+  --eval '
+    use charging_db;
+    db.createUser({
+      user: "charging",
+      pwd: "charging_password",
+      roles: [{role: "readWrite", db: "charging_db"}]
+    });
+    use belp_db;
+    db.createUser({
+      user: "belp",
+      pwd: "belp_password",
+      roles: [{role: "readWrite", db: "belp_db"}]
+    });
+  '
+```
+2. 为 BAE 组件设置环境变量，强制使用 SCRAM-SHA-256：
+```yaml
+# provider.yaml
+biz-ecosystem-charging-backend:
+  env:
+    BAE_CB_MONGO_AUTH_MECHANISM: "SCRAM-SHA-256"
+
+biz-ecosystem-logic-proxy:
+  env:
+    BAE_LP_MONGO_AUTH_MECHANISM: "SCRAM-SHA-256"
+```
+
+> `root` 密码可通过 `kubectl get secret mongodb-root-credentials -n provider -o jsonpath='{.data.password}' | base64 -d` 获取。
+
+**验证命令：**
+```bash
+kubectl logs -n provider -l app.kubernetes.io/name=biz-ecosystem-charging-backend
+kubectl logs -n provider -l app.kubernetes.io/name=biz-ecosystem-logic-proxy
+```
+
+---
+
+### 4.15 Consumer postgres-operator ClusterRole 冲突
+
+**现象：** Consumer Helm install 失败，报错 `resource mapping not found... ClusterRole "postgres-pod" already exists` 或 `cannot patch "postgres-pod"`。
+
+**根因：** `consumer.yaml` 默认启用 `decentralizedIam.vcAuthentication.postgres-operator`，会尝试安装 Zalando PostgreSQL Operator 的 CRD/ClusterRole。而基础设施层已经单独安装了 postgres-operator，导致全局 ClusterRole 冲突。
+
+**解决方案：** 部署 Consumer 时禁用 vcAuthentication 中的 postgres-operator：
+```bash
+helm install consumer charts/data-space-connector \
+    -f k3s/consumer.yaml \
+    --namespace consumer --create-namespace --wait --timeout 10m \
+    --set decentralizedIam.vcAuthentication.postgres-operator.enabled=false
+```
+
+**验证命令：**
+```bash
+helm list -n consumer
+kubectl get pods -n consumer
+```
+
+---
+
+### 4.16 Provider Keycloak keystore-password Secret 缺失
+
+**现象：** Provider Keycloak Pod 的 `prepare-keystore` init container 失败，提示 `secret "keystore-password" not found`。
+
+**根因：** 与 Consumer 类似，Provider Keycloak 同样依赖 `keystore-password` Secret，但 Chart 默认不会自动创建（视版本而定）。
+
+**解决方案：**
+```bash
+kubectl create secret generic keystore-password \
+    --from-literal=password=changeit -n provider
+```
+
+**验证命令：**
+```bash
+kubectl get secret keystore-password -n provider
+kubectl get pods -n provider | grep keycloak
+```
+
+---
+
 ## 5. 配置参考
 
 ### 5.1 provider.yaml 关键配置
@@ -458,8 +649,9 @@ scorpio:
 
 | Secret | Namespace | 用途 | 创建方式 |
 |--------|-----------|------|---------|
-| `keystore-password` | provider | Keycloak PKCS12 keystore 密码 | Chart 自动创建 |
+| `keystore-password` | provider | Keycloak PKCS12 keystore 密码 | **手动创建** |
 | `keystore-password` | consumer | Keycloak PKCS12 keystore 密码 | **手动创建** |
+| `ca-secret` | cert-manager | cert-manager CA 根证书 | 手动创建 CA 证书链 |
 | `mp-operations.org-tls` | provider | Provider DID 证书 (ECDSA) | cert-manager 签发 |
 | `fancy-marketplace.biz-tls` | consumer | Consumer DID 证书 (ECDSA) | cert-manager 签发 |
 | `verifier.mp-operations.org-tls` | provider | Verifier 签名证书 | cert-manager 签发 |
@@ -474,7 +666,7 @@ scorpio:
 | Pod `Pending` (PVC) | StorageClass 或 Operator 缺失 | `kubectl describe pvc -A` | 安装 PostgreSQL Operator |
 | Pod `CrashLoop` (Keycloak) | Secret 缺失 | `kubectl logs <pod>` | 创建 `keystore-password` |
 | Ingress 404 | ingressClassName 缺失 | `kubectl get ingress -A` | patch ingressClassName |
-| TLS 证书 Pending | cert-manager 未安装 | `kubectl get certificates -A` | 安装 cert-manager |
+| TLS 证书 Pending | cert-manager 未安装 / CA issuer 缺失 | `kubectl get certificates -A` | 安装 cert-manager + 创建 CA issuer |
 | DID 签名失败 | 证书算法 RSA (需 ECDSA) | `openssl x509 -text` | 删除旧 Secret，重新签发 |
 | Verifier 启动失败 | subPath mount 问题 | `kubectl logs <pod> -c add-root-ca` | 重启 Pod |
 | TIL Job 堆积 | 依赖服务未就绪 | `kubectl get jobs -A` | 清理失败 Job |
@@ -482,6 +674,10 @@ scorpio:
 | TMForum 无数据 | 未创建 ProductOffering | `curl <tmf>/productOffering` | Demo 中自动创建 |
 | Contract API 404 | 服务不暴露 REST API | `curl -k <contract-mgmt>/` | 本地 dataclass 模拟 |
 | Token endpoint 格式差异 | Consumer 用 legacy 格式 | `curl <kc>/realms/<realm>` | 检查 `token-service` 字段 |
+| MongoDB `Pending` | ServiceAccount 缺失 | `kubectl get events -n provider` | 创建 `mongodb-database` SA |
+| MongoDB agent 拉取失败 | 镜像 tag 不存在 | `kubectl describe pod mongodb-0 -n provider` | 替换为本地已有 agent 镜像 |
+| BAE charging/logic CrashLoop | SCRAM-SHA-1/256 不匹配或用户缺失 | `kubectl logs <pod> -n provider` | 创建用户 + 设置 `MONGO_AUTH_MECHANISM=SCRAM-SHA-256` |
+| Consumer 安装失败 | postgres-operator ClusterRole 冲突 | `helm install ...` 报错 | 加 `--set decentralizedIam.vcAuthentication.postgres-operator.enabled=false` |
 
 ---
 

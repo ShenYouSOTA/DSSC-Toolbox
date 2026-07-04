@@ -255,12 +255,7 @@ smoke-test:
     @echo "  [Consumer]"
     @kubectl --kubeconfig=/tmp/k3s.yaml get pods -n consumer --no-headers 2>/dev/null | awk '{print "    " $$1 ": " $$3}'
     @echo ""
-    @FAILED=$$(kubectl --kubeconfig=/tmp/k3s.yaml get pods -A --no-headers 2>/dev/null | grep -cvE "Running|Completed"); \
-    if [ "$$FAILED" -gt 0 ]; then \
-        echo "  ⚠️  $$FAILED 个 Pod 异常"; \
-    else \
-        echo "  ✅ 所有 Pod 正常"; \
-    fi
+    @kubectl --kubeconfig=/tmp/k3s.yaml get pods -A --no-headers 2>/dev/null | awk '{print $$3}' | grep -cvE "Running|Completed" | awk '{if ($$1 > 0) print "  ⚠️  " $$1 " 个 Pod 异常"; else print "  ✅ 所有 Pod 正常"}'
 
 # ============================================================
 # 清理操作

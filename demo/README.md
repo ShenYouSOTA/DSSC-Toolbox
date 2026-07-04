@@ -23,11 +23,13 @@ uv run python run_demo.py
 
 ```bash
 # 先确保 k3s 集群已启动并部署完成
-just up                      # 一键启动集群 + 部署所有服务
-just demo-cluster            # 运行完整数据交换流程
+just up                      # 一键启动集群 + 部署所有服务（首次约 15-25 分钟）
+just demo-cluster            # 运行完整数据交换流程（约 1-2 分钟）
 ```
 
 通过 nginx-ingress 访问集群中的 Keycloak、TMForum API、Scorpio 等真实服务。
+
+> **注意：** `just up` 当前仍需要若干手动补丁（CA issuer、MongoDB SA/镜像/认证、keystore Secret 等），详见 [部署笔记](./A_fiware_deployment_notes.md) 第 3-4 节。建议按部署笔记分步操作，而非直接一键运行。
 
 ## 项目结构
 
@@ -278,6 +280,27 @@ just deploy-all              # 部署 trust-anchor + provider + consumer
 
 整个重启过程约 3-5 分钟，无需重新下载镜像。
 
+## 参考部署时长
+
+在 8 核 CPU / 32 GB 内存 / SSD 的本地环境下，首次完整部署大致耗时如下：
+
+| 阶段 | 命令 | 参考时长 | 说明 |
+|------|------|---------|------|
+| 启动 k3s 容器 | `just k3s-start && just k3s-wait` | 1-2 分钟 | 依赖 Docker 镜像是否已缓存 |
+| 部署基础设施 | `just deploy-infra` | 2-3 分钟 | cert-manager + Zalando postgres-operator |
+| 创建 CA issuer | 手动 apply | < 1 分钟 | 一次创建，后续复用 |
+| 部署 Trust Anchor | `just deploy-trust-anchor` | 2-3 分钟 | 使用 H2 内存数据库 |
+| 部署 Provider | `helm install provider ...` | 8-15 分钟 | 主要耗时在镜像拉取与 BAE 启动 |
+| Provider 手动补丁 | 见部署笔记 4.12-4.14 | 5-10 分钟 | MongoDB SA、agent 镜像、用户与认证机制 |
+| 部署 Consumer | `helm install consumer ...` | 3-5 分钟 | 需禁用嵌套 postgres-operator |
+| Consumer 手动补丁 | 见部署笔记 4.8、4.15 | < 5 分钟 | 创建 keystore-password Secret |
+| 配置 Ingress | `helm install ingress-nginx ...` + patch | 1-2 分钟 | 设置 ingressClassName |
+| **首次部署总计** | — | **约 15-25 分钟** | 不含镜像下载等待时间 |
+| 健康检查 | `just demo-cluster-health` | 10-30 秒 | 7 个 ingress 端点 |
+| Real Cluster Demo | `just demo-cluster` | 1-2 分钟 | 完整数据交换流程 |
+
+> **注意：** 若 Docker Hub 或 quay.io 网络不稳定，镜像拉取可能额外耗时 5-20 分钟。建议首次部署前检查网络，或预先拉取关键镜像。
+
 ### 完全清理（释放磁盘空间）
 
 ```bash
@@ -323,6 +346,22 @@ kubectl get ingressclass
 # 检查 ingress 资源
 kubectl get ingress -A
 ```
+
+### 常见部署错误速查
+
+| 错误现象 | 最可能原因 | 快速修复 |
+|---------|-----------|---------|
+| Certificate 一直处于 `Issuing` / `False` | `ca-secret` 或 `ca-issuer` 缺失 | 按部署笔记 4.11 创建自签名 CA 证书链 |
+| Provider Keycloak `prepare-keystore` 失败 | `keystore-password` Secret 缺失 | `kubectl create secret generic keystore-password --from-literal=password=changeit -n provider` |
+| Consumer Keycloak `prepare-keystore` 失败 | `keystore-password` Secret 缺失 | `kubectl create secret generic keystore-password --from-literal=password=changeit -n consumer` |
+| `mongodb-0` 一直 `Pending` | `mongodb-database` ServiceAccount 缺失 | `kubectl create serviceaccount mongodb-database -n provider` |
+| `mongodb-0` 的 `mongodb-agent` `ImagePullBackOff` | 镜像 tag 不存在 | 替换为本地已有镜像，如 `quay.io/mongodb/mongodb-agent-ubi:108.0.6.8796-1` |
+| BAE charging / logic proxy `CrashLoopBackOff` | SCRAM-SHA-1/256 不匹配或 `charging`/`belp` 用户缺失 | 创建 SCRAM-SHA-256 用户并设置 `BAE_CB_MONGO_AUTH_MECHANISM=SCRAM-SHA-256` / `BAE_LP_MONGO_AUTH_MECHANISM=SCRAM-SHA-256` |
+| Consumer Helm 安装失败，ClusterRole 冲突 | 嵌套 postgres-operator 与全局 operator 冲突 | 加 `--set decentralizedIam.vcAuthentication.postgres-operator.enabled=false` |
+| 所有 Ingress 返回 404 | `ingressClassName` 未设置 | `kubectl get ingress -A -o name | xargs -I {} kubectl patch {} --type merge -p '{"spec":{"ingressClassName":"nginx"}}'` |
+| `just smoke-test` 显示异常 Pod | 可能只是 mongodb-agent 镜像未就绪 | 查看 `kubectl describe pod mongodb-0 -n provider`，确认 mongod 容器是否 Running |
+
+更详细的根因与完整修复命令见 [部署笔记 (A_fiware_deployment_notes.md)](./A_fiware_deployment_notes.md)。
 
 ## 相关文档
 
