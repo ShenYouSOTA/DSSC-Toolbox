@@ -25,16 +25,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from config import (
-    DATA_DIR,
     DATASET_ID,
+    DEFAULT_DATA_FILE,
+    DEFAULT_METADATA_FILE,
+    DEFAULT_OPENAPI_FILE,
+    DEFAULT_SCENARIO,
     DEMO_CLIENTS,
     JWT_ALGORITHM,
     JWT_EXPIRY_HOURS,
     JWT_SECRET,
-    METADATA_DIR,
-    OPENAPI_DIR,
     PROVIDER_DID,
     PROVIDER_NAME,
+    scenario_data_dir,
+    scenario_metadata_dir,
+    scenario_mock_api_dir,
     setup_logging,
 )
 
@@ -190,9 +194,17 @@ transfers: dict[str, TransferProcess] = {}
 # ============================================================
 
 
-def load_sample_data() -> dict:
-    """Load sample energy data from JSON file."""
-    data_file = DATA_DIR / "building-energy-sample.json"
+def load_sample_data(
+    scenario: str | None = None,
+    filename: str | None = None,
+) -> dict:
+    """Load sample energy data from JSON file.
+
+    Args:
+        scenario: Scenario name. Uses DEFAULT_SCENARIO when omitted.
+        filename: Data payload filename. Uses DEFAULT_DATA_FILE when omitted.
+    """
+    data_file = scenario_data_dir(scenario) / (filename or DEFAULT_DATA_FILE)
     if data_file.exists():
         with open(data_file, "r") as f:
             return json.load(f)
@@ -213,18 +225,34 @@ def load_sample_data() -> dict:
     }
 
 
-def load_metadata() -> dict:
-    """Load data product metadata from JSON-LD file."""
-    meta_file = METADATA_DIR / "data-product-valid.jsonld"
+def load_metadata(
+    scenario: str | None = None,
+    filename: str | None = None,
+) -> dict:
+    """Load data product metadata from JSON-LD file.
+
+    Args:
+        scenario: Scenario name. Uses DEFAULT_SCENARIO when omitted.
+        filename: Metadata filename. Uses DEFAULT_METADATA_FILE when omitted.
+    """
+    meta_file = scenario_metadata_dir(scenario) / (filename or DEFAULT_METADATA_FILE)
     if meta_file.exists():
         with open(meta_file, "r") as f:
             return json.load(f)
     return {}
 
 
-def load_openapi_spec() -> dict:
-    """Load OpenAPI spec from YAML file."""
-    spec_file = OPENAPI_DIR / "openapi.yaml"
+def load_openapi_spec(
+    scenario: str | None = None,
+    filename: str | None = None,
+) -> dict:
+    """Load OpenAPI spec from YAML file.
+
+    Args:
+        scenario: Scenario name. Uses DEFAULT_SCENARIO when omitted.
+        filename: OpenAPI contract filename. Uses DEFAULT_OPENAPI_FILE when omitted.
+    """
+    spec_file = scenario_mock_api_dir(scenario) / (filename or DEFAULT_OPENAPI_FILE)
     if spec_file.exists():
         with open(spec_file, "r") as f:
             return yaml.safe_load(f)
@@ -631,6 +659,10 @@ async def health_check():
         "status": "healthy",
         "provider": PROVIDER_NAME,
         "dataset": DATASET_ID,
+        "scenario": DEFAULT_SCENARIO,
+        "dataFile": str(scenario_data_dir() / DEFAULT_DATA_FILE),
+        "metadataFile": str(scenario_metadata_dir() / DEFAULT_METADATA_FILE),
+        "contractFile": str(scenario_mock_api_dir() / DEFAULT_OPENAPI_FILE),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 

@@ -234,18 +234,40 @@ neg.state_history.append(...)
 
 #### 3.1.4 文件路径处理
 
-**问题：** Demo 运行时的当前目录不确定，导致 JSON-LD 和 OpenAPI 文件找不到。
+**问题：** Demo 运行时的当前目录不确定，且数据硬编码在仓库根目录的 `DSSC_Tool_Learning/` 下，导致 `demo/` 无法自包含，也不方便替换为真实数据。
 
-**解决方案：** 使用 `Path(__file__).parent` 建立相对路径。
+**解决方案：** 把数据复制到 `demo/data/scenarios/<scenario-name>/`，用 `Path(__file__).parent` 建立相对于 `demo/` 的路径，并通过环境变量切换 scenario 和具体文件。
 
 ```python
-# config.py:15-20
+# config.py:15-65
 DEMO_DIR = Path(__file__).parent
-SCENARIO_DIR = DEMO_DIR.parent / "DSSC_Tool_Learning" / "DSSC_Minimal_Energy_Scenario"
-DATA_DIR = SCENARIO_DIR / "data"
-METADATA_DIR = SCENARIO_DIR / "metadata"
-OPENAPI_DIR = SCENARIO_DIR / "mock-api"
+SCENARIOS_DIR = DEMO_DIR / "data" / "scenarios"
+DEFAULT_SCENARIO = os.environ.get("DEMO_SCENARIO", "DSSC_Minimal_Energy_Scenario")
+
+
+def scenario_dir(name: str | None = None) -> Path:
+    return SCENARIOS_DIR / (name or DEFAULT_SCENARIO)
+
+
+def scenario_data_dir(name: str | None = None) -> Path:
+    return scenario_dir(name) / "data"
+
+
+def scenario_metadata_dir(name: str | None = None) -> Path:
+    return scenario_dir(name) / "metadata"
+
+
+def scenario_mock_api_dir(name: str | None = None) -> Path:
+    return scenario_dir(name) / "mock-api"
+
+
+# 默认 scenario 的兼容别名
+DATA_DIR = scenario_data_dir()
+METADATA_DIR = scenario_metadata_dir()
+OPENAPI_DIR = scenario_mock_api_dir()
 ```
+
+新增 scenario 时，只需在 `demo/data/scenarios/` 下创建同名目录并放入 `data/`、`metadata/`、`mock-api/` 等文件，然后通过 `DEMO_SCENARIO=<name>` 切换。
 
 ### 3.2 Real Cluster Demo 开发踩坑
 
@@ -439,10 +461,19 @@ offering = {
 
 ### 5.1 添加新的数据源
 
-1. 在 `DSSC_Tool_Learning/DSSC_Minimal_Energy_Scenario/data/` 下添加 JSON 数据文件
-2. 在 `provider_server.py` 中添加新的数据加载函数
-3. 添加新的 API 端点（参考 `get_energy_data()` 实现）
-4. 在 `consumer_client.py` 中添加对应的获取方法
+推荐做法：新增一个 scenario 目录，而不是改动默认 scenario。
+
+1. 在 `demo/data/scenarios/` 下新建目录，例如 `my-real-data/`
+2. 在该目录下创建 `data/`、`metadata/`、`mock-api/` 子目录，并放入对应文件
+3. 通过环境变量切换 scenario：
+   ```bash
+   cd demo && DEMO_SCENARIO=my-real-data uv run python run_demo.py
+   ```
+4. 如需使用同一 scenario 下的不同数据文件，可设置 `DEMO_DATA_FILE=real-buildings.json`
+5. 在 `provider_server.py` 中添加新的 API 端点（参考 `get_energy_data()` 实现）
+6. 在 `consumer_client.py` 中添加对应的获取方法
+
+旧的学习资料目录 `DSSC_Tool_Learning/DSSC_Minimal_Energy_Scenario/` 仍保留，作为场景定义和验证的参考源；运行时 Demo 使用 `demo/data/scenarios/` 下的副本。
 
 ### 5.2 接入真实的 Contract Management API
 
@@ -473,10 +504,10 @@ offering = {
 
 **Offering 创建（Mock）：**
 ```python
-# provider_server.py:317-368
+# provider_server.py:338-389
 def create_offering():
-    metadata = load_metadata()  # JSON-LD
-    contract = load_openapi_spec()  # OpenAPI
+    metadata = load_metadata()  # 从当前 scenario 加载 JSON-LD
+    contract = load_openapi_spec()  # 从当前 scenario 加载 OpenAPI
     offering = DataOffering(
         offeringId=f"offering-{uuid.uuid4().hex[:8]}",
         metadata=metadata,
@@ -503,6 +534,10 @@ resp = client.post(f"{ENDPOINTS['TMForum API']}/tmf-api/.../productOffering", js
 |--------|--------|------|
 | `DEMO_JWT_SECRET` | `dssc-demo-secret-key-...` | JWT 签名密钥 |
 | `DEMO_MOCK_PORT` | `8000` | Mock 服务端口 |
+| `DEMO_SCENARIO` | `DSSC_Minimal_Energy_Scenario` | 当前使用的 scenario 目录名 |
+| `DEMO_DATA_FILE` | `building-energy-sample.json` | 默认数据 payload 文件名 |
+| `DEMO_METADATA_FILE` | `data-product-valid.jsonld` | 默认 JSON-LD metadata 文件名 |
+| `DEMO_OPENAPI_FILE` | `openapi.yaml` | 默认 OpenAPI 合同模板文件名 |
 | `DEMO_KC_REALM` | `test-realm` | Keycloak realm |
 | `DEMO_KC_USERNAME` | `employee` | Keycloak 用户名 |
 | `DEMO_KC_PASSWORD` | `test` | Keycloak 密码 |

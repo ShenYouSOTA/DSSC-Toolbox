@@ -33,11 +33,21 @@ just demo-cluster            # 运行完整数据交换流程
 
 ```
 demo/
-├── config.py              # 集中配置 (JWT, 端口, 路径, 凭证)
-├── provider_server.py     # FastAPI Mock Provider (675 行)
-├── consumer_client.py     # Consumer 客户端 (496 行)
-├── run_demo.py            # Mock Demo 编排器 (221 行)
-├── demo_real_cluster.py   # Real Cluster Demo (330 行)
+├── config.py              # 集中配置 (JWT, 端口, 路径, 凭证, scenario 选择)
+├── provider_server.py     # FastAPI Mock Provider
+├── consumer_client.py     # Consumer 客户端
+├── run_demo.py            # Mock Demo 编排器
+├── demo_real_cluster.py   # Real Cluster Demo
+├── data/                  # 演示数据（按 scenario 组织，便于替换为真实数据）
+│   └── scenarios/
+│       └── DSSC_Minimal_Energy_Scenario/
+│           ├── data/               # 数据 payload（静态 JSON / 未来可换 CSV、Parquet）
+│           ├── metadata/           # JSON-LD 数据产品元数据
+│           ├── mock-api/           # OpenAPI 合同模板
+│           ├── shapes/             # SHACL shapes（可选，用于 validation demo）
+│           ├── gaia-x/             # Gaia-X credential 模板（可选）
+│           ├── README.md           # 场景说明
+│           └── VALIDATION_GUIDE.md # 验证指南
 ├── pyproject.toml         # 依赖管理
 ├── uv.lock                # 锁定依赖版本
 ├── ARCHITECTURE.md        # 架构与通信流程文档
@@ -50,9 +60,9 @@ demo/
 |------|-----------|-------------------|
 | 需要 k3s | ❌ | ✅ |
 | 认证方式 | 模拟 JWT | 真实 Keycloak OIDC |
-| 数据服务 | 本地 JSON 文件 | Scorpio NGSI-LD + TMForum API |
+| 数据服务 | 本地 JSON 文件（按 scenario 组织） | Scorpio NGSI-LD + TMForum API |
 | Offering 创建 | FastAPI 内存 | TMForum ProductCatalog API |
-| 数据访问 | 静态 JSON 文件 | Scorpio 实体查询 |
+| 数据访问 | 本地 scenario 数据文件 | Scorpio 实体查询 |
 | Contract Negotiation | Provider 内存状态机 | 本地 dataclass 模拟 |
 | Transfer Process | Provider 内存状态机 | 本地 dataclass 模拟 |
 | 用途 | 开发演示、流程理解 | 部署验证、集成测试 |
@@ -96,10 +106,52 @@ Provider 发布 Offering (加载 JSON-LD metadata + OpenAPI contract)
 |---------|--------|------|
 | `DEMO_JWT_SECRET` | `dssc-demo-secret-key-...` | JWT 签名密钥 |
 | `DEMO_MOCK_PORT` | `8000` | Mock 服务端口 |
+| `DEMO_SCENARIO` | `DSSC_Minimal_Energy_Scenario` | 当前使用的 scenario 目录名 |
+| `DEMO_DATA_FILE` | `building-energy-sample.json` | 默认数据 payload 文件名 |
+| `DEMO_METADATA_FILE` | `data-product-valid.jsonld` | 默认 JSON-LD metadata 文件名 |
+| `DEMO_OPENAPI_FILE` | `openapi.yaml` | 默认 OpenAPI 合同模板文件名 |
 | `DEMO_KC_REALM` | `test-realm` | Keycloak realm |
 | `DEMO_KC_USERNAME` | `employee` | Keycloak 用户名 |
 | `DEMO_KC_PASSWORD` | `test` | Keycloak 密码 |
 | `KUBECONFIG` | `/tmp/k3s.yaml` | k3s kubeconfig 路径 |
+
+## 数据与 scenario 组织
+
+Mock Demo 的数据、metadata、合同模板全部放在 `demo/data/scenarios/<scenario-name>/` 下，使用相对于 `demo/` 目录的路径。这样做的好处：
+
+1. **自包含**：`demo/` 目录可以独立拷贝或测试，不再依赖仓库根目录的 `DSSC_Tool_Learning/`。
+2. **易扩展**：新增 scenario 只需新建 `demo/data/scenarios/<new-scenario>/` 目录并放入对应文件，然后通过 `DEMO_SCENARIO=<new-scenario>` 切换。
+3. **易替换真实数据**：把真实数据文件放入 `demo/data/scenarios/<scenario>/data/` 并调整 `DEMO_DATA_FILE`，即可让 Provider 加载真实数据而无需改代码。
+
+### 默认 scenario 结构
+
+```
+demo/data/scenarios/DSSC_Minimal_Energy_Scenario/
+├── data/
+│   └── building-energy-sample.json      # 建筑小时级用电量数据
+├── metadata/
+│   ├── data-product-valid.jsonld        # 合法 metadata（Provider 默认使用）
+│   └── data-product-invalid.jsonld      # 故意错误的 metadata（validation demo 使用）
+├── mock-api/
+│   └── openapi.yaml                     # 数据接口 OpenAPI 合同
+├── shapes/
+│   └── building-energy-shapes.ttl       # SHACL shapes
+├── gaia-x/
+│   ├── legal-participant.template.jsonld
+│   └── service-offering.template.jsonld
+├── README.md
+└── VALIDATION_GUIDE.md
+```
+
+### 切换 scenario 或数据文件
+
+```bash
+# 使用另一个 scenario
+cd demo && DEMO_SCENARIO=my-real-data uv run python run_demo.py
+
+# 使用同一 scenario 下的另一个数据文件
+cd demo && DEMO_DATA_FILE=real-buildings-2026.json uv run python run_demo.py server
+```
 
 ## Justfile 快捷命令
 
@@ -279,6 +331,6 @@ kubectl get ingress -A
 - [数据交换 Demo (流程 + 踩坑 + 扩展指南)](./data_exchange_demo.md)
 - [项目概述](../wiki/1-xiang-mu-gai-shu.md)
 - [快速部署指南](../wiki/2-kuai-su-bu-shu-zhi-nan.md)
-- [场景说明](../DSSC_Tool_Learning/DSSC_Minimal_Energy_Scenario/README.md)
-- [验证指南](../DSSC_Tool_Learning/DSSC_Minimal_Energy_Scenario/VALIDATION_GUIDE.md)
+- [默认场景说明](./data/scenarios/DSSC_Minimal_Energy_Scenario/README.md)
+- [默认场景验证指南](./data/scenarios/DSSC_Minimal_Energy_Scenario/VALIDATION_GUIDE.md)
 - [集群排查记录](../doc/troubleshooting-k3s-deployment.md)

@@ -13,11 +13,59 @@ from pathlib import Path
 # ============================================================
 
 DEMO_DIR = Path(__file__).parent
-SCENARIO_DIR = DEMO_DIR.parent / "DSSC_Tool_Learning" / "DSSC_Minimal_Energy_Scenario"
-DATA_DIR = SCENARIO_DIR / "data"
-METADATA_DIR = SCENARIO_DIR / "metadata"
-OPENAPI_DIR = SCENARIO_DIR / "mock-api"
+
+# ============================================================
+# Scenario data layout
+# ============================================================
+# Demo data lives under demo/data/scenarios/<scenario-name>/ so that
+# the Python demo is self-contained and can be extended with new
+# scenarios or swapped for real data sources without leaving the demo
+# directory.
+#
+# Expected structure per scenario:
+#   data/              - payload files (e.g. building-energy-sample.json)
+#   metadata/          - JSON-LD metadata files
+#   mock-api/          - OpenAPI contract templates
+#   shapes/            - SHACL shapes (optional, for validation demos)
+#   gaia-x/            - Gaia-X credential templates (optional)
+
+SCENARIOS_DIR = DEMO_DIR / "data" / "scenarios"
+DEFAULT_SCENARIO = os.environ.get("DEMO_SCENARIO", "DSSC_Minimal_Energy_Scenario")
+
+
+def scenario_dir(name: str | None = None) -> Path:
+    """Return the base directory for a named scenario."""
+    return SCENARIOS_DIR / (name or DEFAULT_SCENARIO)
+
+
+def scenario_data_dir(name: str | None = None) -> Path:
+    """Return the data payload directory for a named scenario."""
+    return scenario_dir(name) / "data"
+
+
+def scenario_metadata_dir(name: str | None = None) -> Path:
+    """Return the metadata directory for a named scenario."""
+    return scenario_dir(name) / "metadata"
+
+
+def scenario_mock_api_dir(name: str | None = None) -> Path:
+    """Return the mock-api contract directory for a named scenario."""
+    return scenario_dir(name) / "mock-api"
+
+
+# Backwards-compatible aliases for the default scenario
+SCENARIO_DIR = scenario_dir()
+DATA_DIR = scenario_data_dir()
+METADATA_DIR = scenario_metadata_dir()
+OPENAPI_DIR = scenario_mock_api_dir()
 LOG_DIR = DEMO_DIR / "logs"
+
+# Default asset file names within a scenario. These can be overridden by
+# environment variables to switch to a different payload or contract
+# without changing code.
+DEFAULT_DATA_FILE = os.environ.get("DEMO_DATA_FILE", "building-energy-sample.json")
+DEFAULT_METADATA_FILE = os.environ.get("DEMO_METADATA_FILE", "data-product-valid.jsonld")
+DEFAULT_OPENAPI_FILE = os.environ.get("DEMO_OPENAPI_FILE", "openapi.yaml")
 
 # ============================================================
 # Provider 配置

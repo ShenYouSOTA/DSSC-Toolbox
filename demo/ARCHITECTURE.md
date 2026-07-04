@@ -16,6 +16,40 @@
 
 ---
 
+## 数据组织：按 Scenario 分层
+
+为了把 Mock Demo 从固定的学习资料目录解耦，并方便后续接入真实数据，演示数据现在统一放在 `demo/data/scenarios/<scenario-name>/` 下，通过 `config.py` 中的相对路径函数读取：
+
+```
+demo/data/scenarios/
+└── DSSC_Minimal_Energy_Scenario/
+    ├── data/
+    │   └── building-energy-sample.json          # API payload
+    ├── metadata/
+    │   ├── data-product-valid.jsonld            # 默认 metadata
+    │   └── data-product-invalid.jsonld          # validation 失败案例
+    ├── mock-api/
+    │   └── openapi.yaml                         # 合同模板
+    ├── shapes/
+    │   └── building-energy-shapes.ttl           # SHACL shapes
+    └── gaia-x/
+        ├── legal-participant.template.jsonld
+        └── service-offering.template.jsonld
+```
+
+`config.py` 提供以下函数供代码使用：
+
+```python
+scenario_dir(name)          # demo/data/scenarios/<name>
+scenario_data_dir(name)     # .../data
+scenario_metadata_dir(name) # .../metadata
+scenario_mock_api_dir(name) # .../mock-api
+```
+
+默认 scenario 由 `DEMO_SCENARIO` 环境变量控制（默认 `DSSC_Minimal_Energy_Scenario`），具体文件由 `DEMO_DATA_FILE`、`DEMO_METADATA_FILE`、`DEMO_OPENAPI_FILE` 控制。Provider 在加载 offering 和数据时会使用这些路径，从而在不修改代码的情况下切换到新的 scenario 或真实数据文件。
+
+---
+
 ## 流程 1: Provider 发布 Data Offering，Consumer 看到 Metadata
 
 ### Mock Demo
@@ -45,14 +79,16 @@ Consumer                    Provider (FastAPI :8000)
 
 **代码位置：**
 
-- `provider_server.py:317-368` — `create_offering()` 从磁盘加载 `metadata/data-product-valid.jsonld` 和 `mock-api/openapi.yaml`，组装成 `DataOffering` 存入内存
-- `provider_server.py:376-413` — `get_catalog()` 和 `get_offering()` 返回内存中的 offerings
+- `provider_server.py:338-389` — `create_offering()` 从 scenario 的 `metadata/` 和 `mock-api/` 加载资源，组装成 `DataOffering` 存入内存
+- `provider_server.py:398-428` — `get_catalog()` 和 `get_offering()` 返回内存中的 offerings
 - `consumer_client.py:44-105` — `discover_catalog()` 和 `view_offering()` GET 端点获取数据
 
 **数据源：**
 
-- `DSSC_Tool_Learning/DSSC_Minimal_Energy_Scenario/metadata/data-product-valid.jsonld` — JSON-LD 元数据（DCAT/DCTerms）
-- `DSSC_Tool_Learning/DSSC_Minimal_Energy_Scenario/mock-api/openapi.yaml` — OpenAPI 3.0 合同模板
+- `demo/data/scenarios/DSSC_Minimal_Energy_Scenario/metadata/data-product-valid.jsonld` — JSON-LD 元数据（DCAT/DCTerms）
+- `demo/data/scenarios/DSSC_Minimal_Energy_Scenario/mock-api/openapi.yaml` — OpenAPI 3.0 合同模板
+
+Mock Provider 启动时通过 `config.py` 中的 scenario 路径函数定位这些文件；默认 scenario 为 `DSSC_Minimal_Energy_Scenario`，可通过环境变量 `DEMO_SCENARIO` 切换。
 
 ### Real Cluster Demo
 
@@ -87,7 +123,7 @@ Python Client               k3s 集群 (via nginx-ingress)
 **数据流：**
 
 ```
-DSSC_Minimal_Energy_Scenario/data/building-energy-sample.json
+demo/data/scenarios/DSSC_Minimal_Energy_Scenario/data/building-energy-sample.json
         ↓ (demo 读取)
 Python Client → Scorpio: 创建 urn:ngsi-ld:Building:BLD-001 实体
 Python Client → TMForum: 创建 ProductSpecification (Energy Data Specification)
@@ -145,8 +181,8 @@ Transfer Process:
 
 **代码位置：**
 
-- `provider_server.py:425-468` — `start_negotiation()` 创建 negotiation 后立即自动推进到 AGREED
-- `provider_server.py:499-554` — `start_transfer()` 检查 negotiation 必须是 AGREED，然后自动推进到 COMPLETED
+- `provider_server.py:447-490` — `start_negotiation()` 创建 negotiation 后立即自动推进到 AGREED
+- `provider_server.py:522-577` — `start_transfer()` 检查 negotiation 必须是 AGREED，然后自动推进到 COMPLETED
 - `consumer_client.py:152-237` — `negotiate_contract()` 和 `start_transfer()` 发起请求并打印状态历史
 
 ### Real Cluster Demo
@@ -193,7 +229,7 @@ Consumer                    Provider (FastAPI :8000)
 **静态数据文件：**
 
 ```json
-// DSSC_Tool_Learning/DSSC_Minimal_Energy_Scenario/data/building-energy-sample.json
+// demo/data/scenarios/DSSC_Minimal_Energy_Scenario/data/building-energy-sample.json
 {
   "datasetId": "building-energy-hourly-v1",
   "providerName": "Energy Data Provider Ltd.",
@@ -208,7 +244,7 @@ Consumer                    Provider (FastAPI :8000)
 
 **代码位置：**
 
-- `provider_server.py:580-611` — `get_energy_data()` 验证 token 后加载静态 JSON，按参数过滤返回
+- `provider_server.py:604-635` — `get_energy_data()` 验证 token 后从当前 scenario 加载数据文件，按参数过滤返回
 - `consumer_client.py:243-287` — `retrieve_data()` 带 token 请求数据端点
 
 ### Real Cluster Demo
@@ -335,8 +371,8 @@ provider-keycloak-0 (pod in provider namespace)
 
 | 文件 | 行数 | 职责 |
 |------|------|------|
-| `config.py` | 95 | 集中配置：路径、JWT、端口、凭证、logging |
-| `provider_server.py` | 675 | FastAPI Mock Provider（auth/catalog/negotiate/transfer/data） |
+| `config.py` | 150+ | 集中配置：路径、JWT、端口、凭证、logging、scenario 选择 |
+| `provider_server.py` | 700+ | FastAPI Mock Provider（auth/catalog/negotiate/transfer/data） |
 | `consumer_client.py` | 496 | Consumer 客户端（7 步流程） |
 | `run_demo.py` | 221 | Mock Demo 编排器 |
 | `demo_real_cluster.py` | 330 | Real Cluster Demo（ingress + 完整数据交换） |
