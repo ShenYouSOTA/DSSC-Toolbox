@@ -44,7 +44,10 @@
 
 简要描述：
 
-> Provider `Energy Data Provider Ltd.` publishes an hourly building energy data product in the data space. Consumer `City Analytics Lab` discovers the offering and requests access. The data space authority requires shared semantic metadata, basic Gaia-X trust/compliance description, and metadata validation.
+> Provider `Energy Data Provider Ltd.` publishes an hourly building energy data product in the data space. 
+Consumer `City Analytics Lab` discovers the offering and requests access.
+The data space authority requires shared 
+semantic metadata, basic Gaia-X trust/compliance description, and metadata validation.
 
 
 ### 2.3 场景角色

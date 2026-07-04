@@ -1,0 +1,185 @@
+
+🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟
+
+  FIWARE DSC 数据空间完整流程演示
+  Publishing → Discovery → Negotiation → Transfer → Data Access
+
+🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟
+
+📡 步骤0: 启动 Provider 服务器...
+⏳ 等待服务器启动: http://localhost:8000/health
+✅ 服务器已就绪
+
+============================================================
+🏢 Provider: 发布 Data Offering (数据发布)
+============================================================
+
+   1. Provider 认证...
+   ✅ Token 获取成功
+
+   2. 创建 Data Offering...
+
+   ✅ Offering 已发布!
+      Offering ID: offering-building-energy-hourly-v1-06630bfa
+      标题: Building Energy Consumption Dataset API
+      提供方: Energy Data Provider Ltd.
+      端点: http://localhost:8000/api/energy/buildings/hourly
+      政策: NEGOTIATE
+      许可证: CC-BY-4.0
+      Metadata @type: dcat:Dataset
+      Contract paths: ['/energy/buildings/hourly']
+
+
+============================================================
+👤 Consumer: 执行完整数据空间流程
+============================================================
+
+🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀
+
+  FIWARE DSC 数据空间完整流程演示
+  Data Publishing → Discovery → Negotiation → Transfer → Data Access
+
+🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀
+
+============================================================
+📡 步骤1: 发现数据目录 (Catalog Discovery)
+============================================================
+
+✅ 发现 1 个数据集:
+   - Building Energy Consumption Dataset API
+     Offering ID: offering-building-energy-hourly-v1-06630bfa
+     Provider: Energy Data Provider Ltd.
+     Policy: NEGOTIATE - Consumer must negotiate contract before accessing data
+
+============================================================
+📋 步骤2: 查看 Offering 详情 (Metadata + Contract)
+============================================================
+
+✅ Offering 详情:
+   标题: Building Energy Consumption Dataset API
+   数据集 ID: building-energy-hourly-v1
+   提供方: Energy Data Provider Ltd.
+   端点: http://localhost:8000/api/energy/buildings/hourly
+   格式: application/json
+   频率: hourly
+   空间覆盖: Shenzhen demo district
+   时间范围: 2026-05-01 ~ 2026-05-02
+   许可证: CC-BY-4.0
+
+   📜 合同政策:
+      类型: NEGOTIATE
+      用途: Research and analytics
+      约束: No redistribution
+      约束: Attribution required
+
+   📄 Metadata (JSON-LD @type): dcat:Dataset
+   📄 Contract Template (OpenAPI): ['/energy/buildings/hourly']
+
+============================================================
+🔐 步骤3: 认证 (Authentication)
+============================================================
+
+   模拟 OID4VP 流程:
+   1. Consumer 向 VCVerifier 发起认证请求
+   2. 提供 Verifiable Credential
+   3. VCVerifier 验证凭证
+   4. 签发 JWT 访问令牌
+
+✅ 认证成功!
+   Subject: city-analytics-lab
+   Name: City Analytics Lab
+   DID: did:web:city-analytics-lab.example.org
+   Role: consumer
+   Scope: read:energy-data
+   Expires in: 7200 seconds
+
+============================================================
+📝 步骤4: 合同协商 (Contract Negotiation)
+============================================================
+
+   Offering ID: offering-building-energy-hourly-v1-06630bfa
+   Consumer DID: did:web:city-analytics-lab.example.org
+
+   状态机流转: REQUESTED → CONFIRMED → AGREED
+
+✅ 协商完成!
+   Negotiation ID: neg-47bf607b94d4
+   Contract ID: contract-db91b36c
+   最终状态: AGREED
+
+   📊 状态历史:
+      [REQUESTED] 2026-06-27T11:25:26.215962+00:00
+         Consumer initiated negotiation
+      [CONFIRMED] 2026-06-27T11:25:26.215985+00:00
+         Provider confirmed negotiation
+      [AGREED] 2026-06-27T11:25:26.216009+00:00
+         Contract contract-db91b36c created
+
+============================================================
+🔄 步骤5: 数据传输 (Transfer Process)
+============================================================
+
+   Negotiation ID: neg-47bf607b94d4
+
+   状态机流转: REQUESTED → STARTED → COMPLETED
+
+✅ 传输完成!
+   Transfer ID: transfer-d93dc60bddee
+   最终状态: COMPLETED
+
+   📦 数据源地址:
+      类型: HttpData
+      URL: http://localhost:8000/api/energy/buildings/hourly
+
+   📊 状态历史:
+      [REQUESTED] 2026-06-27T11:25:26.217465+00:00
+         Consumer initiated transfer
+      [STARTED] 2026-06-27T11:25:26.217480+00:00
+         Provider started data provisioning
+      [COMPLETED] 2026-06-27T11:25:26.217498+00:00
+         Data is ready for retrieval
+
+============================================================
+📊 步骤6: 获取数据 (Data Retrieval)
+============================================================
+
+   请求参数: 无 (获取全部数据)
+   Transfer ID: transfer-d93dc60bddee
+   使用 Bearer Token 认证
+
+✅ 数据获取成功!
+   Dataset ID: building-energy-hourly-v1
+   Provider: Energy Data Provider Ltd.
+   License: CC-BY-4.0
+   Records: 3 条
+
+============================================================
+✅ 步骤7: 验证数据格式 (Validation)
+============================================================
+
+✅ 数据格式验证通过!
+   - 所有必填字段存在
+   - 数据类型正确
+   - 单位符合规范 (kWh)
+
+============================================================
+📊 流程总结
+============================================================
+  ✅ 步骤1: 目录发现 - 1 个 offering
+  ✅ 步骤2: Offering 详情 - Building Energy Consumption Dataset API
+  ✅ 步骤3: 身份认证 - JWT token 获取成功
+  ✅ 步骤4: 合同协商 - AGREED | Contract: contract-db91b36c
+  ✅ 步骤5: 数据传输 - COMPLETED | Transfer: transfer-d93dc60bddee
+  ✅ 步骤6: 数据获取 - 3 条记录
+  ✅ 步骤7: 数据验证 - 格式正确
+------------------------------------------------------------
+✅ 数据空间完整流程全部完成!
+
+============================================================
+✅ 完整演示完成!
+============================================================
+
+流程总结:
+  Provider: 创建 Data Offering (含 metadata + contract policy)
+  Consumer: 发现 → 查看详情 → 认证 → 协商 → 传输 → 获取数据 → 验证
+

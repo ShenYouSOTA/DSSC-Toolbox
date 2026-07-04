@@ -1,0 +1,98 @@
+
+🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟
+
+  FIWARE DSC 真实集群端到端 Demo
+  验证 k3s 集群中所有数据空间组件
+
+🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟
+
+  🔌 启动 port-forward...
+     ✅ svc/provider-keycloak -> localhost:8443
+     ✅ svc/consumer-keycloak -> localhost:8444
+     ✅ svc/verifier -> localhost:8445
+     ✅ svc/data-service-scorpio -> localhost:8446
+     ✅ svc/tm-forum-api-svc -> localhost:8447
+     ✅ svc/trusted-issuers-list -> localhost:8448
+     ✅ svc/provider-fdsc-dashboard -> localhost:8449
+     ✅ svc/provider-biz-ecosystem-logic-proxy -> localhost:8450
+     ✅ svc/tir -> localhost:8451
+
+============================================================
+📡 步骤1: 集群健康检查
+============================================================
+
+  [Trust Anchor]
+  ✅ TIR: 200
+
+  [Provider 服务]
+  ✅ Keycloak: 200
+  ✅ Verifier: 200
+  ⚠️  Scorpio: 400 (期望 200)
+  ✅ TMForum API: 200
+  ✅ TIL: 200
+  ✅ Dashboard: 200
+
+  [Consumer 服务]
+  ✅ Keycloak: 200
+
+  📊 健康检查结果: 7/8 通过
+
+============================================================
+🔐 步骤2: Consumer Keycloak 认证
+============================================================
+
+  🔑 从 Consumer Keycloak 获取 Token...
+     Base URL: http://localhost:8444
+     Token Endpoint: http://localhost:8444/realms/test-realm/protocol/openid-connect/token
+     ✅ Token 获取成功 (expires_in: 300s)
+
+============================================================
+🔐 步骤3: Provider Keycloak 认证
+============================================================
+
+  🔑 从 Provider Keycloak 获取 Token...
+     Base URL: http://localhost:8443
+     Token Endpoint: http://localhost:8443/realms/test-realm/protocol/openid-connect/token
+     ✅ Token 获取成功 (expires_in: 300s)
+
+============================================================
+🔍 步骤4: 测试 VCVerifier
+============================================================
+
+  检查 Verifier 健康状态...
+  ✅ Verifier 状态: OK
+
+============================================================
+📊 步骤5: 测试数据服务
+============================================================
+
+  [Scorpio Context Broker]
+  状态: 400
+  ⚠️  响应: {"type":"https://uri.etsi.org/ngsi-ld/errors/InvalidRequest","title":"Invalid request.","detail":{"message":"Invalid request."},"errorCode":400}
+
+  [TMForum API]
+  状态: 200
+  ✅ Catalog 数量: 0
+
+============================================================
+📋 步骤6: 测试 Trusted Issuers List
+============================================================
+  ✅ TIL 状态: 正常
+  响应: {
+  "total": 1,
+  "pageSize": 1,
+  "page": 0,
+  "items": [
+    "did:web:fancy-marketplace.biz"
+  ]
+}
+
+============================================================
+📊 流程总结
+============================================================
+
+  耗时: 3.5s
+  Consumer Token: ✅ 获取成功
+  Provider Token: ✅ 获取成功
+  健康检查: 7/8 通过
+

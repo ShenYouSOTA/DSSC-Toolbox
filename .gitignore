@@ -15,3 +15,10 @@ Desktop.ini
 # Temp
 *.tmp
 *.bak
+
+# Contents
+#
+data-space-connector/
+.ospec/
+AGENTS.md
+
