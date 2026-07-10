@@ -1,0 +1,97 @@
+[ {
+  "id" : "urn:ngsi-ld:BuildingEnergyReading:BLD-001:MTR-001:20260501T000000",
+  "type" : "BuildingEnergyReading",
+  "buildingId" : {
+    "type" : "Property",
+    "value" : "BLD-001"
+  },
+  "city" : {
+    "type" : "Property",
+    "value" : "Shenzhen"
+  },
+  "district" : {
+    "type" : "Property",
+    "value" : "Nanshan"
+  },
+  "energyKWh" : {
+    "type" : "Property",
+    "value" : 12.4,
+    "observedAt" : "2026-05-01T00:00:00Z"
+  },
+  "meterId" : {
+    "type" : "Property",
+    "value" : "MTR-001"
+  },
+  "timestamp" : {
+    "type" : "Property",
+    "value" : "2026-05-01T00:00:00Z"
+  },
+  "unit" : {
+    "type" : "Property",
+    "value" : "kWh"
+  }
+}, {
+  "id" : "urn:ngsi-ld:BuildingEnergyReading:BLD-001:MTR-001:20260501T010000",
+  "type" : "BuildingEnergyReading",
+  "buildingId" : {
+    "type" : "Property",
+    "value" : "BLD-001"
+  },
+  "city" : {
+    "type" : "Property",
+    "value" : "Shenzhen"
+  },
+  "district" : {
+    "type" : "Property",
+    "value" : "Nanshan"
+  },
+  "energyKWh" : {
+    "type" : "Property",
+    "value" : 10.9,
+    "observedAt" : "2026-05-01T01:00:00Z"
+  },
+  "meterId" : {
+    "type" : "Property",
+    "value" : "MTR-001"
+  },
+  "timestamp" : {
+    "type" : "Property",
+    "value" : "2026-05-01T01:00:00Z"
+  },
+  "unit" : {
+    "type" : "Property",
+    "value" : "kWh"
+  }
+}, {
+  "id" : "urn:ngsi-ld:BuildingEnergyReading:BLD-002:MTR-014:20260501T000000",
+  "type" : "BuildingEnergyReading",
+  "buildingId" : {
+    "type" : "Property",
+    "value" : "BLD-002"
+  },
+  "city" : {
+    "type" : "Property",
+    "value" : "Shenzhen"
+  },
+  "district" : {
+    "type" : "Property",
+    "value" : "Futian"
+  },
+  "energyKWh" : {
+    "type" : "Property",
+    "value" : 21.7,
+    "observedAt" : "2026-05-01T00:00:00Z"
+  },
+  "meterId" : {
+    "type" : "Property",
+    "value" : "MTR-014"
+  },
+  "timestamp" : {
+    "type" : "Property",
+    "value" : "2026-05-01T00:00:00Z"
+  },
+  "unit" : {
+    "type" : "Property",
+    "value" : "kWh"
+  }
+} ]

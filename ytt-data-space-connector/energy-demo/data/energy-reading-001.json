@@ -1,0 +1,33 @@
+{
+  "id": "urn:ngsi-ld:BuildingEnergyReading:BLD-001:MTR-001:20260501T000000",
+  "type": "BuildingEnergyReading",
+  "buildingId": {
+    "type": "Property",
+    "value": "BLD-001"
+  },
+  "meterId": {
+    "type": "Property",
+    "value": "MTR-001"
+  },
+  "energyKWh": {
+    "type": "Property",
+    "value": 12.4,
+    "observedAt": "2026-05-01T00:00:00Z"
+  },
+  "timestamp": {
+    "type": "Property",
+    "value": "2026-05-01T00:00:00Z"
+  },
+  "unit": {
+    "type": "Property",
+    "value": "kWh"
+  },
+  "city": {
+    "type": "Property",
+    "value": "Shenzhen"
+  },
+  "district": {
+    "type": "Property",
+    "value": "Nanshan"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "lifecycleStatus": "ACTIVE",
+  "name": "Building Energy Consumption Dataset API",
+  "description": "Hourly building electricity consumption data offered by Energy Data Provider Ltd.",
+  "productSpecification": {
+    "id": "urn:ngsi-ld:product-specification:9078fcf4-b3b9-41d0-a051-714afc67d895"
+  }
+}

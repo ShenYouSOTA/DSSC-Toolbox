@@ -1,0 +1,16 @@
+{
+  "productOrderItem": [
+    {
+      "id": "building-energy-order-item-20260627122502",
+      "action": "add",
+      "productOffering": {
+        "id": "urn:ngsi-ld:product-offering:b2f608e2-262d-41ad-bebc-e367f1913bbb"
+      }
+    }
+  ],
+  "relatedParty": [
+    {
+      "id": "urn:ngsi-ld:organization:8b79c3b2-afa3-4eaf-84c8-19bdbc497f57"
+    }
+  ]
+}

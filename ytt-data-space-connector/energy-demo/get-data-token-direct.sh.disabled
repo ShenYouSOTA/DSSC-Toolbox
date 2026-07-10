@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+REPO_DIR="$HOME/DSSC_projects/data-space-connector"
+CERT_DIR="${REPO_DIR}/cert"
+CREDENTIAL_FILE="$HOME/DSSC_projects/energy-demo/secrets/user-credential.jwt"
+CONVERT_SCRIPT="${REPO_DIR}/doc/scripts/convert_ec.sh"
+
+DATA_HOST="mp-data-service.127.0.0.1.nip.io"
+DATA_BASE="https://${DATA_HOST}:8443"
+
+if [ ! -s "$CREDENTIAL_FILE" ]; then
+  echo "错误：找不到 USER_CREDENTIAL 文件：$CREDENTIAL_FILE" >&2
+  exit 1
+fi
+
+if [ ! -s "${CERT_DIR}/did.json" ]; then
+  echo "错误：找不到 ${CERT_DIR}/did.json" >&2
+  exit 1
+fi
+
+if [ ! -s "${CERT_DIR}/private-key.pem" ]; then
+  echo "错误：找不到 ${CERT_DIR}/private-key.pem" >&2
+  exit 1
+fi
+
+if [ ! -s "$CONVERT_SCRIPT" ]; then
+  echo "错误：找不到 $CONVERT_SCRIPT" >&2
+  exit 1
+fi
+
+USER_CREDENTIAL=$(cat "$CREDENTIAL_FILE")
+HOLDER_DID=$(jq -r '.id // empty' "${CERT_DIR}/did.json")
+
+if [ -z "$USER_CREDENTIAL" ]; then
+  echo "错误：USER_CREDENTIAL 文件为空" >&2
+  exit 1
+fi
+
+if [ -z "$HOLDER_DID" ]; then
+  echo "错误：did.json 中没有 id" >&2
+  exit 1
+fi
+
+# convert_ec.sh 定义 convert_ec 函数。
+source "$CONVERT_SCRIPT"
+
+base64url() {
+  openssl base64 -A |
+    tr '+/' '-_' |
+    tr -d '='
+}
+
+echo "1/4 获取数据服务 OIDC 配置..." >&2
+
+OIDC_HTTP=$(
+  curl -sk \
+    --resolve "${DATA_HOST}:8443:127.0.0.1" \
+    -o /tmp/data-service-oidc-direct.json \
+    -w '%{http_code}' \
+    "${DATA_BASE}/.well-known/openid-configuration"
+)
+
+if [ "$OIDC_HTTP" != "200" ]; then
+  echo "OIDC 配置获取失败，HTTP ${OIDC_HTTP}" >&2
+  cat /tmp/data-service-oidc-direct.json >&2
+  exit 1
+fi
+
+TOKEN_ENDPOINT=$(
+  jq -r '.token_endpoint // empty' \
+    /tmp/data-service-oidc-direct.json
+)
+
+if [ -z "$TOKEN_ENDPOINT" ]; then
+  echo "OIDC 配置中没有 token_endpoint" >&2
+  exit 1
+fi
+
+# 本地部署返回公开式地址：
+# https://verifier.mp-operations.org/...
+# 直连环境需要添加本机映射端口 8443。
+TOKEN_ENDPOINT=$(
+  printf '%s' "$TOKEN_ENDPOINT" |
+  sed \
+    's#https://verifier\.mp-operations\.org#https://verifier.mp-operations.org:8443#' |
+  sed 's/:8443:8443/:8443/'
+)
+
+VERIFIER_HOST=$(
+  printf '%s' "$TOKEN_ENDPOINT" |
+  sed -E 's#https://([^/:]+).*#\1#'
+)
+
+echo "Token endpoint：$TOKEN_ENDPOINT" >&2
+echo "Holder DID：$HOLDER_DID" >&2
+
+echo "2/4 创建并签署 Verifiable Presentation..." >&2
+
+VERIFIABLE_PRESENTATION=$(
+  jq -cn \
+    --arg credential "$USER_CREDENTIAL" \
+    --arg holder "$HOLDER_DID" \
+    '{
+      "@context": ["https://www.w3.org/2018/credentials/v1"],
+      "type": ["VerifiablePresentation"],
+      "verifiableCredential": [$credential],
+      "holder": $holder
+    }'
+)
+
+JWT_HEADER=$(
+  jq -cn \
+    --arg kid "$HOLDER_DID" \
+    '{
+      alg: "ES256",
+      typ: "JWT",
+      kid: $kid
+    }' |
+  base64url
+)
+
+PAYLOAD=$(
+  jq -cn \
+    --arg iss "$HOLDER_DID" \
+    --arg sub "$HOLDER_DID" \
+    --argjson vp "$VERIFIABLE_PRESENTATION" \
+    '{
+      iss: $iss,
+      sub: $sub,
+      vp: $vp
+    }' |
+  base64url
+)
+
+SIGNATURE=$(
+  printf '%s' "${JWT_HEADER}.${PAYLOAD}" |
+  openssl dgst \
+    -sha256 \
+    -binary \
+    -sign "${CERT_DIR}/private-key.pem" |
+  convert_ec |
+  base64url
+)
+
+JWT="${JWT_HEADER}.${PAYLOAD}.${SIGNATURE}"
+
+# 当前 FIWARE 示例要求再对整个 JWT 做一次 base64url 编码。
+VP_TOKEN="$JWT"
+
+VP_SEGMENTS=$(awk -F. '{print NF}' <<< "$VP_TOKEN")
+if [ "$VP_SEGMENTS" -ne 3 ]; then
+  echo "错误：VP Token 不是三段式 JWT" >&2
+  exit 1
+fi
+echo "VP Token 格式检查：三段式 JWT" >&2
+
+echo "3/4 向 Verifier 换取 Access Token..." >&2
+
+TOKEN_HTTP=$(
+  curl -sk \
+    --resolve "${VERIFIER_HOST}:8443:127.0.0.1" \
+    -o /tmp/data-service-token-response.json \
+    -w '%{http_code}' \
+    -X POST \
+    "$TOKEN_ENDPOINT" \
+    -H 'Accept: application/json' \
+    -H 'Content-Type: application/x-www-form-urlencoded' \
+    --data-urlencode 'grant_type=vp_token' \
+    --data-urlencode "vp_token=${VP_TOKEN}" \
+    --data-urlencode 'scope=default'
+)
+
+echo "Verifier HTTP：${TOKEN_HTTP}" >&2
+
+if [ "$TOKEN_HTTP" != "200" ]; then
+  echo "Access Token 获取失败：" >&2
+  jq . /tmp/data-service-token-response.json >&2 2>/dev/null ||
+    cat /tmp/data-service-token-response.json >&2
+  exit 1
+fi
+
+DATA_SERVICE_ACCESS_TOKEN=$(
+  jq -r '.access_token // empty' \
+    /tmp/data-service-token-response.json
+)
+
+if [ -z "$DATA_SERVICE_ACCESS_TOKEN" ]; then
+  echo "Verifier 响应中没有 access_token：" >&2
+  jq . /tmp/data-service-token-response.json >&2
+  exit 1
+fi
+
+echo "4/4 数据服务 Access Token 获取成功" >&2
+echo "Token 长度：${#DATA_SERVICE_ACCESS_TOKEN}" >&2
+
+# 标准输出中只返回 Token，供命令替换捕获。
+printf '%s' "$DATA_SERVICE_ACCESS_TOKEN"

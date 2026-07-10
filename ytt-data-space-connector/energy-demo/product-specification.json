@@ -1,0 +1,97 @@
+{
+  "brand": "Energy Data Provider Ltd.",
+  "version": "1.0.0",
+  "lifecycleStatus": "ACTIVE",
+  "name": "Building Energy Consumption Dataset API",
+  "description": "Hourly electricity consumption readings for demo buildings in Shenzhen.",
+  "productSpecCharacteristic": [
+    {
+      "id": "datasetId",
+      "name": "Dataset ID",
+      "valueType": "string",
+      "productSpecCharacteristicValue": [
+        {
+          "isDefault": true,
+          "value": "building-energy-hourly-v1"
+        }
+      ]
+    },
+    {
+      "id": "endpointUrl",
+      "name": "Endpoint URL",
+      "valueType": "string",
+      "productSpecCharacteristicValue": [
+        {
+          "isDefault": true,
+          "value": "https://mp-data-service.127.0.0.1.nip.io:8443/ngsi-ld/v1/entities?type=BuildingEnergyReading"
+        }
+      ]
+    },
+    {
+      "id": "format",
+      "name": "Format",
+      "valueType": "string",
+      "productSpecCharacteristicValue": [
+        {
+          "isDefault": true,
+          "value": "application/json"
+        }
+      ]
+    },
+    {
+      "id": "frequency",
+      "name": "Frequency",
+      "valueType": "string",
+      "productSpecCharacteristicValue": [
+        {
+          "isDefault": true,
+          "value": "hourly"
+        }
+      ]
+    },
+    {
+      "id": "unit",
+      "name": "Unit",
+      "valueType": "string",
+      "productSpecCharacteristicValue": [
+        {
+          "isDefault": true,
+          "value": "kWh"
+        }
+      ]
+    },
+    {
+      "id": "spatialCoverage",
+      "name": "Spatial Coverage",
+      "valueType": "string",
+      "productSpecCharacteristicValue": [
+        {
+          "isDefault": true,
+          "value": "Shenzhen demo district"
+        }
+      ]
+    },
+    {
+      "id": "temporalCoverage",
+      "name": "Temporal Coverage",
+      "valueType": "string",
+      "productSpecCharacteristicValue": [
+        {
+          "isDefault": true,
+          "value": "2026-05-01 to 2026-05-02"
+        }
+      ]
+    },
+    {
+      "id": "license",
+      "name": "License",
+      "valueType": "string",
+      "productSpecCharacteristicValue": [
+        {
+          "isDefault": true,
+          "value": "CC-BY-4.0"
+        }
+      ]
+    }
+  ]
+}
