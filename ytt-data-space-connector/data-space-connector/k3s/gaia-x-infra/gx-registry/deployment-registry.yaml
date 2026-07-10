@@ -1,0 +1,127 @@
+---
+# Source: gx-registry/templates/deployment-registry.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gx-registry
+  namespace: infra
+  labels:
+    app.kubernetes.io/name: gx-registry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gx-registry
+  template:
+    metadata:
+      annotations:
+        randstring: "AZtvXjSD"
+      labels:
+        app.kubernetes.io/name: gx-registry
+    spec:
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+        - name: wait-for-kubo
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - until nc -z gx-registry-kubo 5001; do echo waiting for Kubo; sleep 2; done;
+        - name: local-trust
+          image: quay.io/wi_stefan/gaiax-local-trust:0.0.1
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              export ROOT_CA=$(sed '/-----BEGIN CERTIFICATE-----/d;/-----END CERTIFICATE-----/d' /ca/ca.crt | tr -d '\n')
+              /entrypoint.sh
+          volumeMounts:
+            - name: trust-anchor
+              mountPath: /out
+            - name: ca-cert
+              mountPath: /ca
+              readOnly: true
+      containers:
+        - name: gx-registry
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+          image: "registry.gitlab.com/gaia-x/lab/compliance/gx-registry:v2.8.1"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "3000"
+            - name: BASE_URI
+              value: "https://registry.127.0.0.1.nip.io/v2"
+            - name: BASE_URL
+              value: "https://registry.127.0.0.1.nip.io/v2"
+            - name: APP_PATH
+              value: "/v2"
+            - name: evsslonly
+              value: "false"
+            - name: revocationListURL
+              value:
+            - name: trustedIssuersURL
+              value:
+            - name: KUBO_HOST
+              value: gx-registry-kubo
+            - name: APP_BRANCH
+              value: "main"
+            - name: ONTOLOGY_VERSION
+              value: "development"
+            - name: PRIVATE_KEY_ALGORITHM
+              value: "PS256"
+            - name: NODE_TLS_REJECT_UNAUTHORIZED
+              value: "0"
+            - name: HTTPS_PROXY
+              value: "http://squid-proxy.infra.svc.cluster.local:8888"
+            - name: HTTP_PROXY
+              value: "http://squid-proxy.infra.svc.cluster.local:8888"
+            - name: PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gx-registry-signing-cert
+                  key: tls.key
+            - name: X509_CERTIFICATE
+              valueFrom:
+                secretKeyRef:
+                  name: gx-registry-signing-cert
+                  key: tls.crt
+          volumeMounts:
+            - name: registry-ipfs-data
+              mountPath: /data/ipfs
+            - name: trust-anchor
+              mountPath: /data/ipfs/registry/
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          livenessProbe:
+            periodSeconds: 15
+            initialDelaySeconds: 15
+            failureThreshold: 10
+            successThreshold: 1
+            httpGet:
+              path: /v2
+              port: 3000
+          readinessProbe:
+            periodSeconds: 15
+            initialDelaySeconds: 15
+            failureThreshold: 10
+            successThreshold: 1
+            httpGet:
+              path: /v2
+              port: 3000
+          resources: {}
+      volumes:
+        - name: trust-anchor
+          emptyDir: {}
+        - name: registry-ipfs-data
+          emptyDir: {}
+        - name: ca-cert
+          secret:
+            secretName: registry.127.0.0.1.nip.io-tls
+            items:
+              - key: ca.crt
+                path: ca.crt

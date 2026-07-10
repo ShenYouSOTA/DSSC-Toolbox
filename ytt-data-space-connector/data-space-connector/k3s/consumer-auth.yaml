@@ -1,0 +1,444 @@
+# dedicated values to configure auth components for the consumer. Required for central-marketplace and edc related features.
+
+# register the consumer at the til. Only possible if it runs in the same environment and recommendable for demo deployments
+registration:
+  enabled: true
+  configMap: consumer-til-registration
+  til: http://trusted-issuers-list.consumer.svc.cluster.local:8080
+  issuer:
+    - did: did:web:mp-operations.org
+      credentialTypes:
+        - MembershipCredential
+
+decentralizedIam:
+  vcAuthentication:
+    postgres-operator:
+      enabled: false
+
+    trusted-issuers-list:
+      enabled: true
+      deployment:
+        resources:
+          limits:
+            cpu: 300m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      # only open for clean up in the tests
+      ingress:
+        til:
+          enabled: true
+          annotations:
+            cert-manager.io/cluster-issuer: "selfsigned-issuer"
+            cert-manager.io/alt-names: "til-consumer.127.0.0.1.nip.io"
+            cert-manager.io/private-key-algorithm: "ECDSA"
+            cert-manager.io/common-name: "til-consumer.127.0.0.1.nip.io"
+            traefik.ingress.kubernetes.io/router.tls: "true"
+          hosts:
+            - host: til-consumer.127.0.0.1.nip.io
+              paths:
+                - /
+          tls:
+            - secretName: til-consumer.127.0.0.1.nip.io-tls
+              hosts:
+                - til-consumer.127.0.0.1.nip.io
+    credentials-config-service:
+      enabled: false
+    vcverifier:
+      enabled: true
+      ingress:
+        enabled: true
+        annotations:
+          traefik.ingress.kubernetes.io/router.tls: "true"
+          cert-manager.io/cluster-issuer: "selfsigned-issuer"
+          cert-manager.io/private-key-algorithm: "ECDSA"
+          cert-manager.io/common-name: "verifier.fancy-marketplace.biz"
+          cert-manager.io/alt-names: "verifier.fancy-marketplace.biz"
+        tls:
+          - hosts:
+              - verifier.fancy-marketplace.biz
+            secretName: verifier.fancy-marketplace.biz-tls
+        hosts:
+          - host: verifier.fancy-marketplace.biz
+            paths:
+              - "/"
+      configIngress:
+        enabled: true
+        annotations:
+          cert-manager.io/cluster-issuer: "selfsigned-issuer"
+          cert-manager.io/private-key-algorithm: "ECDSA"
+          cert-manager.io/alt-names: "consumer-ccs.127.0.0.1.nip.io"
+          cert-manager.io/common-name: "consumer-ccs.127.0.0.1.nip.io"
+          traefik.ingress.kubernetes.io/router.tls: "true"
+        hosts:
+          - host: consumer-ccs.127.0.0.1.nip.io
+            paths:
+              - "/"
+        tls:
+          - secretName: consumer-ccs.127.0.0.1.nip.io-tls
+            hosts:
+              - consumer-ccs.127.0.0.1.nip.io
+      deployment:
+        logging:
+          level: DEBUG
+        verifier:
+          tirAddress: https://tir.127.0.0.1.nip.io/
+          did: did:web:fancy-marketplace.biz
+          supportedModes: ["byValue", "byReference"]
+          clientIdentification:
+            keyPath: /signing-key/tls.key
+            certificatePath: /signing-key/tls.crt
+            requestKeyAlgorithm: ES256
+            id: x509_san_dns:verifier.fancy-marketplace.biz
+        server:
+          host: https://verifier.fancy-marketplace.biz
+        additionalVolumes:
+          - name: signing-key
+            secret:
+              secretName: verifier.fancy-marketplace.biz-tls
+          # add the cert-manager CA to the system truststore
+          - name: root-ca
+            emptyDir: {}
+        additionalVolumeMounts:
+          - name: signing-key
+            mountPath: /signing-key
+          # add the cert-manager CA to the system truststore
+          - name: root-ca
+            mountPath: /etc/ssl/cert.pem
+            subPath: cert.pem
+        additionalEnvVars:
+          - name: HTTPS_PROXY
+            value: "http://squid-proxy.infra.svc.cluster.local:8888"
+          - name: HTTP_PROXY
+            value: "http://squid-proxy.infra.svc.cluster.local:8888"
+          - name: NO_PROXY
+            value: "credentials-config-service,w3.org,trusted-issuers-list"
+        initContainers:
+          # add the cert-manager CA to the system truststore
+          - name: add-root-ca
+            image: alpine:3.21.3
+            command:
+              - /bin/sh
+            args:
+              - -c
+              - |
+                #!/bin/sh
+                cp /etc/ssl/cert.pem /root-ca/cert.pem
+                cat /root-ca/cacert.pem >> /root-ca/cert.pem
+            volumeMounts:
+              - name: root-ca
+                mountPath: /root-ca
+              - name: signing-key
+                mountPath: /root-ca/cacert.pem
+                subPath: ca.crt
+          - name: register-at-tir
+            image: curlimages/curl:8.18.0
+            command:
+              - /bin/sh
+            args:
+              - -ec
+              - |
+                curl -X 'POST' 'http://tir.trust-anchor.svc.cluster.local:8080/issuer' -H 'Content-Type: application/json' -d "{\"did\": \"did:web:fancy-marketplace.biz\", \"credentials\": []}"
+      registration:
+        enabled: true
+        job:
+          # Use a long TTL so the Job persists until the k3s-maven-plugin
+          # has verified its completion. The default 120s races with the
+          # plugin's parallel wait loop in CI.
+          ttlSecondsAfterFinished: 86400
+          initContainers:
+            waitForHost:
+              enabled: true
+              path: /health
+          activeDeadlineSeconds: 1500
+        services:
+          - id: tm-forum
+            defaultOidcScope: "default"
+            authorizationType: "DEEPLINK"
+            oidcScopes:
+              "default":
+                credentials:
+                  - type: LegalPersonCredential
+                    trustedParticipantsLists:
+                      - https://tir.127.0.0.1.nip.io
+                    # we want that every participant can access the marketplace and register
+                    trustedIssuersLists:
+                      - "*"
+                    jwtInclusion:
+                      enabled: true
+                      fullInclusion: true
+                dcql:
+                  credentials:
+                    - id: legal-person-query
+                      format: "vc+sd-jwt"
+                      multiple: false
+                      claims:
+                        - id: roles-claim
+                          path:
+                            - roles
+                      meta:
+                        vct_values:
+                          - LegalPersonCredential
+          - id: dsp
+            defaultOidcScope: "openid"
+            authorizationType: "DEEPLINK"
+            oidcScopes:
+              "openid":
+                credentials:
+                  - type: MembershipCredential
+                    trustedParticipantsLists:
+                      - https://tir.127.0.0.1.nip.io
+                    trustedIssuersLists:
+                      - "*"
+                    jwtInclusion:
+                      enabled: true
+                      fullInclusion: true
+                dcql:
+                  credentials:
+                    - id: mc-query
+                      format: "jwt_vc_json"
+                      multiple: true
+                      meta:
+                        type_values:
+                          - [MembershipCredential]
+    
+  odrlAuthorization:
+    # authorized access to tmforum
+    apisix:
+      enabled: true
+      etcd:
+        replicaCount: 1
+        persistence:
+          enabled: false
+      apisix:
+        admin:
+          credentials:
+            admin: admin
+          allow:
+            ipList:
+              - 0.0.0.0/0
+        deployment:
+          mode: traditional
+          role: "traditional"
+          role_traditional:
+            config_provider: "etcd"
+          role_data_plane:
+            config_provider: "etcd"
+        catchAllRoute:
+          enabled: false
+      ingress:
+        enabled: true
+        annotations:
+          cert-manager.io/cluster-issuer: "selfsigned-issuer"
+          cert-manager.io/private-key-algorithm: "ECDSA"
+          traefik.ingress.kubernetes.io/router.tls: "true"
+        hosts:
+          - host: fancy-marketplace.127.0.0.1.nip.io
+            paths: ["/"]
+          - host: dsp-fancy-marketplace.127.0.0.1.nip.io
+            paths: ["/"]
+          - host: dcp-fancy-marketplace.127.0.0.1.nip.io
+            paths: ["/"]
+          - host: identityhub-fancy-marketplace.127.0.0.1.nip.io
+            paths: ["/"]
+          - host: identityhub-management-fancy-marketplace.127.0.0.1.nip.io
+            paths: ["/"]
+          - host: dsp-dcp-management.127.0.0.1.nip.io
+            paths: ["/"]
+          - host: dsp-oid4vc-management.127.0.0.1.nip.io
+            paths: ["/"]
+          - host: vault-fancy-marketplace.127.0.0.1.nip.io
+            paths: ["/"]
+        tls:
+          - secretName: apisix-consumer-tls
+            hosts:
+              - fancy-marketplace.127.0.0.1.nip.io
+              - dsp-fancy-marketplace.127.0.0.1.nip.io
+              - dcp-fancy-marketplace.127.0.0.1.nip.io
+              - identityhub-fancy-marketplace.127.0.0.1.nip.io
+              - identityhub-management-fancy-marketplace.127.0.0.1.nip.io
+              - dsp-dcp-management.127.0.0.1.nip.io
+              - dsp-oid4vc-management.127.0.0.1.nip.io
+              - vault-fancy-marketplace.127.0.0.1.nip.io
+      catchAllRoute:
+        enabled: false
+      routes:
+        - uri: /.well-known/openid-configuration
+          host: fancy-marketplace.127.0.0.1.nip.io
+          upstream:
+            nodes:
+              verifier:3000: 1
+            type: roundrobin
+          plugins:
+            proxy-rewrite:
+              uri: /services/tm-forum/.well-known/openid-configuration
+        - uri: /*
+          host: fancy-marketplace.127.0.0.1.nip.io
+          upstream:
+            nodes:
+              tm-forum-api-svc:8080: 1
+            type: roundrobin
+          plugins:
+            openid-connect:
+              proxy_opts:
+                https_proxy: http://squid-proxy.infra.svc.cluster.local:8888
+              bearer_only: true
+              use_jwks: true
+              client_id: tm-forum
+              client_secret: unused
+              ssl_verify: false
+              discovery: https://verifier.fancy-marketplace.biz/services/tm-forum/.well-known/openid-configuration
+            opa:
+              host: "http://localhost:8181"
+              policy: policy/main
+              with_body: true
+        - uri: /*
+          host: dsp-dcp-management.127.0.0.1.nip.io
+          upstream:
+            nodes:
+              consumer-fdsc-edc-dcp:8085: 1
+            type: roundrobin
+        - uri: /*
+          host: dsp-oid4vc-management.127.0.0.1.nip.io
+          upstream:
+            nodes:
+              consumer-fdsc-edc-oid4vc:8085: 1
+            type: roundrobin
+        - uri: /.well-known/openid-configuration
+          host: dsp-fancy-marketplace.127.0.0.1.nip.io
+          upstream:
+            nodes:
+              verifier:3000: 1
+            type: roundrobin
+          plugins:
+            proxy-rewrite:
+              uri: /services/dsp/.well-known/openid-configuration
+        - uri: /api/identity/*
+          host: identityhub-management-fancy-marketplace.127.0.0.1.nip.io
+          upstream:
+            nodes:
+              identityhub-service:8082: 1
+        - uri: /api/credentials/*
+          host: identityhub-fancy-marketplace.127.0.0.1.nip.io
+          upstream:
+            nodes:
+              identityhub-service:8083: 1
+        - uri: /*
+          host: dcp-fancy-marketplace.127.0.0.1.nip.io
+          upstream:
+            nodes:
+              consumer-fdsc-edc-dcp:8080: 1
+        - uri: /*
+          host: dsp-fancy-marketplace.127.0.0.1.nip.io
+          upstream:
+            nodes:
+              consumer-fdsc-edc-oid4vc:8080: 1
+          plugins:
+            openid-connect:
+              proxy_opts:
+                https_proxy: http://squid-proxy.infra.svc.cluster.local:8888
+              bearer_only: true
+              use_jwks: true
+              client_id: dsp
+              client_secret: unused
+              ssl_verify: false
+              discovery: https://verifier.fancy-marketplace.biz/services/dsp/.well-known/openid-configuration
+        - uri: /*
+          host: vault-fancy-marketplace.127.0.0.1.nip.io
+          upstream:
+            nodes:
+              consumer-vault:8200: 1
+    # policies for accessing the tmf
+    odrl-pap:
+      enabled: true
+      additionalEnvVars:
+        - name: GENERAL_ORGANIZATION_DID
+          value: did:web:fancy-marketplace.biz
+      ingress:
+        annotations:
+          cert-manager.io/cluster-issuer: "selfsigned-issuer"
+          cert-manager.io/private-key-algorithm: "ECDSA"
+          cert-manager.io/common-name: "pap-consumer.127.0.0.1.nip.io"
+          cert-manager.io/alt-names: "pap-consumer.127.0.0.1.nip.io"
+          traefik.ingress.kubernetes.io/router.tls: "true"
+        enabled: true
+        hosts:
+          - host: pap-consumer.127.0.0.1.nip.io
+            paths:
+              - "/"
+
+vcCredentials:
+  enabled: true
+  issuers:
+    - name: consumer-contract-management-issuer
+      issuerURL: http://consumer-keycloak:8080/realms/test-realm
+      issuerType: keycloak
+      tokenURL: http://consumer-keycloak:8080/realms/test-realm/protocol/openid-connect/token
+      auth:
+        secretName: consumer-contract-management-client-auth
+        clientId: contract-management
+        clientSecret: contract-management-client-secret
+      requests:
+        - name: consumer-marketplace-credential
+          credentialType: marketplace-credential
+          format: jwt_vc_json
+          targetSecretName: vc-marketplace-credential
+          targetSecretKey: credential
+          targetFile: marketplace-credential.jwt
+          renewBefore: 5m
+          holderBinding:
+            enabled: false
+        - name: consumer-legal-person-credential
+          credentialType: legal-person-credential
+          format: jwt_vc_json
+          targetSecretName: vc-legal-person-credential
+          targetSecretKey: credential
+          targetFile: legal-person-credential.jwt
+          renewBefore: 5m
+          holderBinding:
+            enabled: false
+    - name: consumer-fdsc-edc-issuer
+      issuerURL: http://consumer-keycloak:8080/realms/test-realm
+      issuerType: keycloak
+      tokenURL: http://consumer-keycloak:8080/realms/test-realm/protocol/openid-connect/token
+      auth:
+        secretName: consumer-fdsc-edc-client-auth
+        clientId: fdsc-edc
+        clientSecret: fdsc-edc-client-secret
+      requests:
+        - name: consumer-fdsc-edc-credential
+          credentialType: membership-credential
+          format: jwt_vc_json
+          targetSecretName: vc-fdsc-edc-credential
+          targetSecretKey: credential
+          targetFile: membership-credential.jwt
+          renewBefore: 5m
+          holderBinding:
+            enabled: false
+
+vc-operator:
+  enabled: true
+  watchNamespaces:
+    - consumer
+  extraEnvVars:
+    - name: HTTPS_PROXY
+      value: "http://squid-proxy.infra.svc.cluster.local:8888"
+    - name: HTTP_PROXY
+      value: "http://squid-proxy.infra.svc.cluster.local:8888"
+    - name: NO_PROXY
+      value: "consumer-keycloak,*.cluster.local,*.svc,10.0.0.0/8"
+    - name: SSL_CERT_FILE
+      value: "/etc/ssl/certs/ca.crt"
+  extraVolumeMounts:
+    - name: root-ca
+      mountPath: /etc/ssl/certs/ca.crt
+      subPath: ca.crt
+      readOnly: true
+  extraVolumes:
+    - name: root-ca
+      secret:
+        secretName: fancy-marketplace.biz-tls
+        items:
+          - key: ca.crt
+            path: ca.crt
