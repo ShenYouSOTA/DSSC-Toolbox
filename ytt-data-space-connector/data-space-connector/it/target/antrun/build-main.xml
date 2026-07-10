@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<project name="maven-antrun-" default="main"  >
+<target name="main">
+  <replaceregexp match="(kind: Ingress&#10;metadata:&#10;  name: [^\n]+)" replace="\1&#10;  namespace: provider" byline="false">
+    <fileset includes="**/apisix/templates/ingress.yaml" dir="/home/ytt_19825/DSSC_projects/data-space-connector/it/target/k3s/dsc-provider" erroronmissingdir="false"/>
+  </replaceregexp>
+  <replaceregexp match="(kind: Ingress&#10;metadata:&#10;  name: [^\n]+)" replace="\1&#10;  namespace: consumer" byline="false">
+    <fileset includes="**/apisix/templates/ingress.yaml" dir="/home/ytt_19825/DSSC_projects/data-space-connector/it/target/k3s/dsc-consumer" erroronmissingdir="false"/>
+  </replaceregexp>
+</target>
+</project>

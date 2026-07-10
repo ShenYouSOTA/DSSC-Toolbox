@@ -1,0 +1,12 @@
+{{- if and .Values.keycloak.enabled .Values.keycloak.realm.import }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.keycloak.realm.name }}-realm
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "dsc.labels" . | nindent 4 }}
+data:
+  {{ .Values.keycloak.realm.name }}-realm.json: |-
+    {{- tpl (include "dsc.realmJson" .) . | nindent 4 }}
+{{- end }}
