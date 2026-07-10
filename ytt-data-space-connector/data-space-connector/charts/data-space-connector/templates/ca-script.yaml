@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ca-certs-script
+  namespace: {{ $.Release.Namespace | quote }}
+data:
+  import-ca.sh: |-
+    #!/bin/sh
+    orgCerts="${3:-/etc/pki/java/cacerts}"
+    chmod a+rw -R $1/
+    cp $orgCerts $1/
+    keytool -importcert -file $2 -alias myCA \
+      -keystore $1/cacerts \
+      -storepass changeit  \
+      -noprompt

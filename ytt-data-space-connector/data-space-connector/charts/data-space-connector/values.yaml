@@ -1,0 +1,3114 @@
+# -- configuration to be shared between the issuance components
+issuance:
+  generatePasswords:
+    # -- should a password for the database connection of issuance components be generated in the cluster
+    enabled: true
+    #-- name of the secret to put the generated password into
+    secretName: issuance-secret
+
+decentralizedIam:
+  enabled: true
+
+  # -- configuration for the vc-authentication to be deployed as part of the connector, see https://github.com/FIWARE/vc-authentication/tree/master
+  vcAuthentication:
+    ## Usage of the postgres-operator - see https://github.com/zalando/postgres-operator
+    managedPostgres:
+      # -- should it be enabled? Requires the postgres-operator CRDs to be installed before applying the chart
+      enabled: true
+      # -- config as defined in https://github.com/zalando/postgres-operator/blob/master/charts/postgres-operator/crds/postgresqls.yaml
+      config:
+        teamId: "dsc"
+        numberOfInstances: 1
+        postgresql:
+          version: "16"
+        volume:
+          size: 1Gi
+        users:
+          admin: # maintainer
+            - superuser
+            - createdb
+          til:
+            - createdb
+          ccs:
+            - createdb
+          pap:
+            - createdb
+          keycloak:
+            - createdb
+          ih:
+            - createdb
+          issuer:
+            - createdb
+        databases:
+          tildb: til
+          ccsdb: ccs
+          papdb: pap
+          keycloakdb: keycloak
+          ih: ih
+          issuer: issuer
+
+    # -- configuration for the trusted-issuers-list to be deployed as part of the connector, see https://github.com/FIWARE/helm-charts/tree/main/charts/trusted-issuers-list for all options
+    trusted-issuers-list:
+      # -- should it be enabled? set to false if one outside the chart is used.
+      enabled: true
+      # -- allows to set a fixed name for the services
+      fullnameOverride: trusted-issuers-list
+      # -- connection to the database
+      database:
+        # -- should persistence be used?
+        persistence: true
+        # -- name of the db dialect
+        dialect: POSTGRES
+        # -- name of the db user
+        username: postgres
+        # -- configuration for the existing secret to get the passwords from
+        existingSecret:
+          enabled: true
+          name: postgres.postgres.credentials.postgresql.acid.zalan.do
+          key: password
+        # -- host of the database
+        host: postgres
+        # -- host of the database
+        port: 5432
+        # -- name of the schema inside the db
+        name: tildb
+
+    # -- configuration for the vcverifier to be deployed as part of the connector, see https://github.com/FIWARE/helm-charts/tree/main/charts/vcverifier for all options
+    vcverifier:
+      # -- should it be enabled? set to false if one outside the chart is used.
+      enabled: true
+      # -- allows to set a fixed name for the services
+      fullnameOverride: verifier
+      deployment:
+        # -- configuration for the m2m flow, in case the tir is requiring authentication
+        m2m:
+          # -- we do not need authentication here
+          authEnabled: false
+        database:
+          name: ccsdb
+          host: postgres
+          type: postgres
+          existingSecret:
+            name: postgres.postgres.credentials.postgresql.acid.zalan.do
+            usernameKey: username
+            passwordKey: password
+    # -- configuration for the credentials-config-service to be deployed as part of the connector, see https://github.com/FIWARE/helm-charts/tree/main/charts/credentials-config-service for all options
+    credentials-config-service:
+      # -- should it be enabled? set to false if one outside the chart is used.
+      enabled: false
+      # -- allows to set a fixed name for the services
+      fullnameOverride: credentials-config-service
+      # -- connection to the database
+      database:
+        # -- should persistence be used?
+        persistence: true
+        # -- name of the db dialect
+        dialect: POSTGRES
+        # -- name of the db user
+        username: postgres
+        # -- configuration for the existing secret to get the passwords from
+        existingSecret:
+          enabled: true
+          name: postgres.postgres.credentials.postgresql.acid.zalan.do
+          key: password
+        # -- host of the database
+        host: postgres
+        # -- host of the database
+        port: 5432
+        # -- name of the schema inside the db
+        name: ccsdb
+      registration:
+        enabled: false
+
+    # -- configuration for the digital-signature.service to be deployed as part of the connector in case of did:elsi support
+    dss:
+      # -- should it be enabled?
+      enabled: false
+      # -- allows to set a fixed name for the services
+      fullnameOverride: dss
+      # -- can be used to provide the crl for ca's provided as truststore to the dss
+      crl:
+        # -- should it be enabled?
+        enabled: false
+
+  # configuration for the odrl-authorization to be deployed as part of the connector, see https://github.com/FIWARE/odrl-authorization/tree/master
+  odrlAuthorization:
+    # -- configuration for the odrl-pap to be deployed as part of the connector, see https://apisix.apache.org/
+    apisix:
+      ingress-controller:
+        enabled: false
+
+      podAnnotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /apisix/prometheus/metrics
+        prometheus.io/port: "9091"
+      apisix:
+        prometheus:
+          enabled: true
+
+    # -- configuration for the odrl-pap to be deployed as part of the connector, see https://github.com/FIWARE/helm-charts/tree/main/charts/odrl-pap for all options
+    odrl-pap:
+      # -- should it be enabled? set to false if one outside the chart is used.
+      enabled: true
+      # -- allows to set a fixed name for the services
+      fullnameOverride: odrl-pap
+      # -- connection to the database
+      database:
+        # -- url to connect the db at
+        url: jdbc:postgresql://postgres:5432/papdb
+        # -- username to access the db
+        username: postgres
+        # -- secret to take the password from
+        existingSecret:
+          enabled: true
+          name: postgres.postgres.credentials.postgresql.acid.zalan.do
+          key: password
+
+    # -- configuration for the open-policy-agent to be deployed as part of the connector fulfilling the role of the PDP, as a sidecar to apisix
+    opa:
+      # -- should an opa sidecar be deployed to apisix
+      enabled: true
+      # -- address of the pap to get the policies from
+      resourceUrl: http://odrl-pap:8080/bundles/service/v1
+      # -- port to make opa available at
+      port: 8181
+      # -- pull delays for the policies bundle
+      policies:
+        minDelay: 2
+        maxDelay: 4
+      # -- pull delays for the methods bundle
+      methods:
+        minDelay: 1
+        maxDelay: 3
+      # -- pull delays for the data bundle
+      data:
+        minDelay: 1
+        maxDelay: 15
+
+    # -- integration of checks for the transfer process protocol
+    tpp:
+      # -- should checking for a running transfer process be enabled
+      enabled: false
+      transfers:
+        # -- host of the endpoint to check the process id, e.g. rainbow
+        host: ""
+        # -- path to check the id at
+        path: /transfers
+
+## configuration of the context-broker - see https://github.com/FIWARE/helm-charts/tree/main/charts/scorpio-broker-aaio for details
+scorpio:
+  fullnameOverride: data-service-scorpio
+  # -- should scorpio be enabled
+  enabled: true
+  ## configuration of the image to be used
+  image:
+    # -- repository to be used - resource friendly all-in-one-runner without kafka
+    repository: scorpiobroker/all-in-one-runner
+    # -- tag of the image to be used - latest java image without kafka
+    tag: java-4.1.10
+  ## configuration of the database to be used by broker
+  db:
+    # -- host of the db
+    dbhost: postgres
+    # -- username to be used
+    user: postgres
+    existingSecret:
+      enabled: true
+      name: postgres.postgres.credentials.postgresql.acid.zalan.do
+      key: password
+  ## configuration of the readiness probe
+  readinessProbe:
+    # -- path to be used for the readiness probe, older versions used /actuator/health
+    path: /q/health
+  ## configuration of the liveness probe
+  livenessProbe:
+    # -- path to be used for the readiness probe, older versions used /actuator/health
+    path: /q/health
+  ## configuration to be used for the service offered by scorpio
+  service:
+    # -- ClusterIP is the recommended type for most clusters
+    type: ClusterIP
+  # -- configuration to register the dataplane at the credentials-config-service
+  ccs:
+    # -- should the automatic registration of scorpio be enabled
+    enabled: false
+    # -- endpoint of the ccs to regsiter at
+    endpoint: http://verifier:8090
+    # -- configmap to get the registration information from
+    configMap: scorpio-registration
+
+  # -- additional init containers to be used for the dataplane
+  #initContainers:
+  # -- curl container to register at the credentials config service
+  #- name: register-credential-config
+  #  image: quay.io/curl/curl:8.1.2
+  #  command: [ "/bin/sh", "-c", "/bin/init.sh" ]
+  #  volumeMounts:
+  #    - name: scorpio-registration
+  #      mountPath: /bin/init.sh
+  #      subPath: init.sh
+  # -- additonal volumes to be mounted for the dataplane
+  additionalVolumes:
+    - name: scorpio-registration
+      configMap:
+        name: scorpio-registration
+        defaultMode: 0755
+
+  # -- distributed-tracing configuration for the scorpio subchart.
+  # Scorpio is a Quarkus application with native OpenTelemetry support.
+  # Because scorpio is a third-party subchart whose templates are not
+  # owned by this umbrella chart, tracing is wired through the subchart's
+  # `additionalEnvVars` extension point rather than conditional template
+  # blocks. The Quarkus OTEL runtime gate (`QUARKUS_OTEL_ENABLED`) is set
+  # to `false` by default so tracing has no runtime effect until
+  # explicitly enabled. To activate tracing, override the env vars below
+  # (or pass `--set scorpio.additionalEnvVars[0].value=true`) together
+  # with `--set tracing.enabled=true`.
+  tracing:
+    # -- toggle OpenTelemetry tracing on the scorpio workload. Leave
+    # unset (default) to inherit `tracing.enabled` from the global
+    # block; set to `true` / `false` to override.
+    enabled:
+    # -- logical service name exposed as `QUARKUS_OTEL_SERVICE_NAME` and
+    # recorded as the service identity on every span emitted by scorpio.
+    serviceName: scorpio
+  # -- additional environment variables for the scorpio container.
+  # The Quarkus OpenTelemetry vars below are included by default with
+  # `QUARKUS_OTEL_ENABLED=false` so the runtime skips OTEL
+  # initialisation. When overriding, include all entries below to keep
+  # tracing functional (adjust the endpoint to match your release name
+  # or external collector):
+  #   - name: QUARKUS_OTEL_ENABLED
+  #     value: "true"
+  #   - name: QUARKUS_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+  #     value: "http://<release>-opentelemetry-collector:4317"
+  #   - name: QUARKUS_OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+  #     value: "grpc"
+  #   - name: QUARKUS_OTEL_SERVICE_NAME
+  #     value: "scorpio"
+  additionalEnvVars:
+    # -- Quarkus OTEL runtime gate. Set to "true" to enable tracing.
+    - name: QUARKUS_OTEL_ENABLED
+      value: "false"
+    # -- OTLP traces endpoint. Adjust to match your release name or
+    # external collector.
+    - name: QUARKUS_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+      value: ""
+    # -- OTLP protocol (`grpc` | `http/protobuf`).
+    - name: QUARKUS_OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+      value: "grpc"
+    # -- Quarkus OTEL service name. Override via
+    # `scorpio.tracing.serviceName`.
+    - name: QUARKUS_OTEL_SERVICE_NAME
+      value: "scorpio"
+
+# -- configuration to issue credentials, using a did:elsi
+elsi:
+  # -- should a did:elsi be used
+  enabled: false
+  # -- keystore to be used for signing the credentials
+  # keystore:
+  # store.p12: <THE_ENCODED_CONTENT>
+  # -- the did to be used
+  did:
+  # -- algorithm of the signing key
+  keyAlgorithm:
+  # -- path to the keystore
+  storePath:
+  # -- password for the keystore
+  storePassword:
+  # -- alias of the key
+  keyAlias:
+  # -- password of the key
+  keyPassword:
+
+## configuration of the keycloak - see https://github.com/CloudPirates-io/helm-charts/tree/main/charts/keycloak for details
+keycloak:
+  # -- should it be enabled? set to false if one outside the chart is used.
+  enabled: true
+  # -- keycloak server configuration
+  keycloak:
+    # -- admin user. password is read from the secret referenced by `existingSecret`
+    adminUser: keycloak-admin
+    existingSecret: issuance-secret
+    secretKeys:
+      adminPasswordKey: keycloak-admin
+    # -- proxy headers used when TLS is terminated at an upstream ingress/proxy
+    proxyHeaders: xforwarded
+  # -- SEAMWARE-published Keycloak image. This is the official Keycloak source
+  # built on top of the 26.6.2 tag with the patch from upstream main that
+  # restores the OID4VCI QR generation endpoint. The vanilla 26.6.2 image is
+  # missing that fix — see https://github.com/keycloak/keycloak/issues/44623
+  # (#issuecomment-4376937817 confirms the fix is only in main as of this
+  # writing). Swap back to the upstream image once 26.6.3 / 26.7 lands.
+  image:
+    registry: quay.io
+    repository: seamware/keycloak
+    tag: "26.6.2"
+  # -- TLS terminated at the ingress; the container does not serve HTTPS itself
+  tls:
+    enabled: false
+  service:
+    httpPort: 8080
+  # -- expose the management/health port (9000) via a dedicated metrics service
+  metrics:
+    enabled: true
+  # -- enable Keycloak features. Beyond the base `oid4vc-vci` we need two
+  # sub-features that KC main split out from the original flag:
+  #   * `oid4vc-vci-preauth-code` (KC 26.4+) — gates the pre-authorized_code
+  #     grant on /create-credential-offer.
+  #   * `oid4vc-vci-rest-credential-offer` (KC main, present in the SEAMWARE
+  #     patched 26.6.2 image) — gates the /create-credential-offer REST
+  #     endpoint itself. Without it Keycloak answers
+  #     `403 invalid_client: "REST credential offer functionality is not enabled"`.
+  features:
+    enabled:
+      - oid4vc-vci
+      - oid4vc-vci-preauth-code
+      - oid4vc-vci-rest-credential-offer
+
+  # -- sets memory requests for keycloak
+  # increased above the chart defaults to prevent OOMs in linux kernel >=6.14
+  resources:
+    requests:
+      memory: "500Mi"
+      cpu: "0.5"
+    limits:
+      memory: "2Gi"
+      cpu: "1"
+
+  # -- increase thresholds to prevent crashloops in low resource deployments
+  livenessProbe:
+    failureThreshold: 20
+  readinessProbe:
+    failureThreshold: 20
+
+  # -- the chart ships an embedded postgres subchart; disable it and use the external db below
+  postgres:
+    enabled: false
+  # -- external db connection details. when `existingSecret` is set the chart reads
+  # both username and password from it via `secretKeys.{usernameKey,passwordKey}`,
+  # so the keys must match what the postgres operator (Zalando) writes: `username` / `password`.
+  database:
+    host: postgres
+    name: keycloakdb
+    username: postgres
+    existingSecret: postgres.postgres.credentials.postgresql.acid.zalan.do
+    secretKeys:
+      usernameKey: username
+      passwordKey: password
+
+  # -- mount the realm ConfigMap rendered by the umbrella chart at the official import path
+  extraVolumeMounts:
+    - name: realms
+      mountPath: /opt/keycloak/data/import
+
+  # -- extra env vars to be set
+  extraEnvVars:
+    # set in accordance with the memory requests, will result in OOM otherwise
+    - name: KC_HEAP_SIZE
+      value: "1024m"
+
+  # -- name of a ConfigMap whose keys are injected as environment variables
+  # via `envFrom.configMapRef` in the Keycloak StatefulSet. The value is
+  # processed by Bitnami's `tpl` function so it may contain Go template
+  # expressions. The default points at the tracing ConfigMap created by
+  # `keycloak-tracing-cm.yaml`; when tracing is disabled the ConfigMap
+  # exists but is empty, so no extra env vars are added.
+  extraEnvVarsCM: "{{ .Release.Name }}-keycloak-tracing"
+
+  # -- distributed-tracing configuration for Keycloak (25+ native OTEL).
+  # When enabled, a ConfigMap with the standard `OTEL_*` env vars and
+  # `KC_TRACING_ENABLED=true` is created and injected via
+  # `extraEnvVarsCM`. No upstream Keycloak chart modifications are needed
+  # because the env vars are delivered through the `envFrom` hook.
+  tracing:
+    # -- toggle OpenTelemetry tracing on Keycloak. Leave unset (default)
+    # to inherit `tracing.enabled` from the global block; set to `true`
+    # / `false` to override independently.
+    enabled:
+    # -- logical service name exposed as `OTEL_SERVICE_NAME` and recorded
+    # as `service.name` on every span emitted by Keycloak.
+    serviceName: keycloak
+
+  # -- configuration of the realm to be imported
+  realm:
+    # -- should the realm be imported
+    import: true
+    # -- name of the realm
+    name: test-realm
+    # -- frontend url to be used for the realm
+    frontendURL: http://localhost:8080
+    # -- custom displayNameHtml for the realm. If empty, defaults to "<div class="kc-logo-text"><span>{realm.name}</span></div>"
+    displayNameHtml: ""
+    sslRequired: none
+    # -- realm attributes. Support string (old style) or key-value
+    attributes:
+    defaultClientScopes:
+      - name: basic
+        description: OpenID Connect scope for add all basic claims to the token
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "false"
+          display.on.consent.screen: "false"
+        protocolMappers:
+          - name: sub
+            protocol: openid-connect
+            protocolMapper: oidc-sub-mapper
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              access.token.claim: "true"
+          - name: auth_time
+            protocol: openid-connect
+            protocolMapper: oidc-usersessionmodel-note-mapper
+            consentRequired: false
+            config:
+              user.session.note: AUTH_TIME
+              id.token.claim: "true"
+              introspection.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: auth_time
+              jsonType.label: long
+      - name: roles
+        description: OpenID Connect scope for add user roles to the access token
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "false"
+          display.on.consent.screen: "true"
+          consent.screen.text: ${rolesScopeConsentText}
+        protocolMappers:
+          - name: audience resolve
+            protocol: openid-connect
+            protocolMapper: oidc-audience-resolve-mapper
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              access.token.claim: "true"
+          - name: realm roles
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-realm-role-mapper
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              multivalued: "true"
+              user.attribute: foo
+              access.token.claim: "true"
+              claim.name: realm_access.roles
+              jsonType.label: String
+          - name: client roles
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-client-role-mapper
+            consentRequired: false
+            config:
+              introspection.token.claim: "true"
+              multivalued: "true"
+              user.attribute: foo
+              access.token.claim: "true"
+              claim.name: resource_access.${client_id}.roles
+              jsonType.label: String
+      - name: offline_access
+        description: "OpenID Connect built-in scope: offline_access"
+        protocol: openid-connect
+        attributes:
+          consent.screen.text: ${offlineAccessScopeConsentText}
+          display.on.consent.screen: "true"
+      - name: microprofile-jwt
+        description: Microprofile - JWT built-in scope
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "false"
+        protocolMappers:
+          - name: upn
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: username
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: upn
+              jsonType.label: String
+          - name: groups
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-realm-role-mapper
+            consentRequired: false
+            config:
+              multivalued: "true"
+              user.attribute: foo
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: groups
+              jsonType.label: String
+      - name: email
+        description: "OpenID Connect built-in scope: email"
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "true"
+          consent.screen.text: ${emailScopeConsentText}
+        protocolMappers:
+          - name: email
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: email
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: email
+              jsonType.label: String
+          - name: email verified
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: emailVerified
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: email_verified
+              jsonType.label: boolean
+      - name: phone
+        description: "OpenID Connect built-in scope: phone"
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "true"
+          consent.screen.text: ${phoneScopeConsentText}
+        protocolMappers:
+          - name: phone number verified
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: phoneNumberVerified
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: phone_number_verified
+              jsonType.label: boolean
+          - name: phone number
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: phoneNumber
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: phone_number
+              jsonType.label: String
+      - name: address
+        description: "OpenID Connect built-in scope: address"
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "true"
+          consent.screen.text: ${addressScopeConsentText}
+        protocolMappers:
+          - name: address
+            protocol: openid-connect
+            protocolMapper: oidc-address-mapper
+            consentRequired: false
+            config:
+              user.attribute.formatted: formatted
+              user.attribute.country: country
+              user.attribute.postal_code: postal_code
+              userinfo.token.claim: "true"
+              user.attribute.street: street
+              id.token.claim: "true"
+              user.attribute.region: region
+              access.token.claim: "true"
+              user.attribute.locality: locality
+      - name: profile
+        description: "OpenID Connect built-in scope: profile"
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "true"
+          consent.screen.text: ${profileScopeConsentText}
+        protocolMappers:
+          - name: zoneinfo
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: zoneinfo
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: zoneinfo
+              jsonType.label: String
+          - name: nickname
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: nickname
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: nickname
+              jsonType.label: String
+          - name: profile
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: profile
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: profile
+              jsonType.label: String
+          - name: full name
+            protocol: openid-connect
+            protocolMapper: oidc-full-name-mapper
+            consentRequired: false
+            config:
+              id.token.claim: "true"
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+          - name: birthdate
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: birthdate
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: birthdate
+              jsonType.label: String
+          - name: family name
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: lastName
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: family_name
+              jsonType.label: String
+          - name: picture
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: picture
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: picture
+              jsonType.label: String
+          - name: website
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: website
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: website
+              jsonType.label: String
+          - name: locale
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: locale
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: locale
+              jsonType.label: String
+          - name: username
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: username
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: preferred_username
+              jsonType.label: String
+          - name: given name
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: firstName
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: given_name
+              jsonType.label: String
+          - name: updated at
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: updatedAt
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: updated_at
+              jsonType.label: String
+          - name: middle name
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: middleName
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: middle_name
+              jsonType.label: String
+          - name: gender
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: gender
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: gender
+              jsonType.label: String
+      - name: web-origins
+        description: OpenID Connect scope for add allowed web origins to the access token
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "false"
+          display.on.consent.screen: "false"
+          consent.screen.text: ""
+        protocolMappers:
+          - name: allowed web origins
+            protocol: openid-connect
+            protocolMapper: oidc-allowed-origins-mapper
+            consentRequired: false
+            config: {}
+      - name: acr
+        description:
+          OpenID Connect scope for add acr (authentication context class
+          reference) to the token
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "false"
+          display.on.consent.screen: "false"
+        protocolMappers:
+          - name: acr loa level
+            protocol: openid-connect
+            protocolMapper: oidc-acr-mapper
+            consentRequired: false
+            config:
+              id.token.claim: "true"
+              introspection.token.claim: "true"
+              access.token.claim: "true"
+
+    # -- extra non-VC client scopes to be imported. For VC scopes, use
+    # `verifiableCredentials.<name>` further below — each entry there
+    # renders a `protocol: oid4vc` ClientScope with its own protocolMappers.
+    clientScopes: []
+
+    # -- default client roles
+    defaultClientRoles:
+      account:
+        - name: delete-account
+          description: ${role_delete-account}
+          composite: false
+          clientRole: true
+          attributes: {}
+        - name: view-consent
+          description: ${role_view-consent}
+          composite: false
+          clientRole: true
+          attributes: {}
+        - name: view-groups
+          description: ${role_view-groups}
+          composite: false
+          clientRole: true
+          attributes: {}
+        - name: manage-account
+          description: ${role_manage-account}
+          composite: true
+          composites:
+            client:
+              account:
+                - manage-account-links
+          clientRole: true
+          attributes: {}
+        - name: view-profile
+          description: ${role_view-profile}
+          composite: false
+          clientRole: true
+          attributes: {}
+        - name: view-applications
+          description: ${role_view-applications}
+          composite: false
+          clientRole: true
+          attributes: {}
+        - name: manage-consent
+          description: ${role_manage-consent}
+          composite: true
+          composites:
+            client:
+              account:
+                - view-consent
+          clientRole: true
+          attributes: {}
+        - name: manage-account-links
+          description: ${role_manage-account-links}
+          composite: false
+          clientRole: true
+          attributes: {}
+
+    # -- client roles to be imported - be aware the env vars can be used and will be replaced. Support string (old style) or key-value
+    clientRoles:
+      ${DID}:
+        - name: ADMIN
+          description: Is allowed to do everything
+          clientRole: true
+
+    defaultUsers: []
+    # -- users to be imported - be aware the env vars can be used and will be replaced. Support string (old style) or array
+    users:
+      - username: admin-user
+        enabled: true
+        email: admin@provider.org
+        firstName: Test
+        lastName: Admin
+        credentials:
+          - type: password
+            value: test
+        clientRoles:
+          ${DID}:
+            - ADMIN
+          account:
+            - view-profile
+            - manage-account
+        groups: []
+
+    # -- clients to be imported - be aware the env vars can be used and will be replaced. Support string (old style) or array
+    defaultClients:
+      account:
+        name: ${client_account}
+        rootUrl: ${authBaseUrl}
+        baseUrl: /realms/{{ .Values.keycloak.realm.name }}/account/
+        surrogateAuthRequired: false
+        enabled: true
+        alwaysDisplayInConsole: false
+        clientAuthenticatorType: client-secret
+        redirectUris:
+          - /realms/{{ .Values.keycloak.realm.name }}/account/*
+        webOrigins: []
+        notBefore: 0
+        bearerOnly: false
+        consentRequired: false
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        publicClient: true
+        frontchannelLogout: false
+        protocol: openid-connect
+        attributes:
+          realm_client: "false"
+          post.logout.redirect.uris: +
+        authenticationFlowBindingOverrides: {}
+        fullScopeAllowed: true
+        nodeReRegistrationTimeout: 0
+        defaultClientScopes:
+          - web-origins
+          - acr
+          - roles
+          - profile
+          - basic
+          - email
+        optionalClientScopes:
+          - address
+          - phone
+          - offline_access
+          - microprofile-jwt
+      account-console:
+        name: ${client_account-console}
+        rootUrl: ${authBaseUrl}
+        baseUrl: /realms/{{ .Values.keycloak.realm.name }}/account/
+        surrogateAuthRequired: false
+        enabled: true
+        alwaysDisplayInConsole: false
+        clientAuthenticatorType: client-secret
+        redirectUris:
+          - /realms/{{ .Values.keycloak.realm.name }}/account/*
+        webOrigins: []
+        notBefore: 0
+        bearerOnly: false
+        consentRequired: false
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: true
+        serviceAccountsEnabled: false
+        publicClient: true
+        frontchannelLogout: false
+        protocol: openid-connect
+        attributes:
+          realm_client: "false"
+          post.logout.redirect.uris: +
+          pkce.code.challenge.method: S256
+          # KC 26.4+ (PR keycloak#39768): the bearer token used to call
+          # /protocol/oid4vc/create-credential-offer must come from a client
+          # with `oid4vci.enabled=true`. The IT wallet logs in via account-console,
+          # so opt this default client into OID4VCI.
+          oid4vci.enabled: "true"
+        authenticationFlowBindingOverrides: {}
+        fullScopeAllowed: true
+        nodeReRegistrationTimeout: 0
+        protocolMappers:
+          - id: 706c5202-1b03-4fad-a5b8-484287e941f8
+            name: audience resolve
+            protocol: openid-connect
+            protocolMapper: oidc-audience-resolve-mapper
+            consentRequired: false
+            config: {}
+        defaultClientScopes:
+          - web-origins
+          - acr
+          - roles
+          - profile
+          - basic
+          - email
+        optionalClientScopes:
+          - address
+          - phone
+          - offline_access
+          - microprofile-jwt
+      admin-cli:
+        name: ${client_admin-cli}
+        surrogateAuthRequired: false
+        enabled: true
+        alwaysDisplayInConsole: false
+        clientAuthenticatorType: client-secret
+        redirectUris: []
+        webOrigins: []
+        notBefore: 0
+        bearerOnly: false
+        consentRequired: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: true
+        serviceAccountsEnabled: false
+        publicClient: true
+        frontchannelLogout: false
+        protocol: openid-connect
+        attributes:
+          realm_client: "false"
+          client.use.lightweight.access.token.enabled: "true"
+        authenticationFlowBindingOverrides: {}
+        fullScopeAllowed: true
+        nodeReRegistrationTimeout: 0
+        protocolMappers:
+          - name: audience resolve
+            protocol: openid-connect
+            protocolMapper: oidc-audience-resolve-mapper
+            consentRequired: false
+            config: {}
+        defaultClientScopes:
+          - web-origins
+          - acr
+          - roles
+          - profile
+          - basic
+          - email
+        optionalClientScopes:
+          - address
+          - phone
+          - offline_access
+          - microprofile-jwt
+    clients:
+      - clientId: ${DID}
+        enabled: true
+        description: Client to manage itself
+        surrogateAuthRequired: false
+        alwaysDisplayInConsole: false
+        clientAuthenticatorType: client-secret
+        defaultRoles: []
+        redirectUris: []
+        webOrigins: []
+        notBefore: 0
+        bearerOnly: false
+        consentRequired: false
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        publicClient: false
+        frontchannelLogout: false
+        # KC 26.4+: clients keep `protocol: openid-connect` and opt into VC issuance
+        # via the `oid4vci.enabled` attribute. Mappers and credential metadata move
+        # to the per-VC ClientScopes (rendered from `realm.verifiableCredentials`),
+        # which `dsc.defaultClients` auto-extends into the client's optionalClientScopes.
+        protocol: openid-connect
+        attributes:
+          oid4vci.enabled: "true"
+          client.secret.creation.time: "1675260539"
+        protocolMappers: []
+        authenticationFlowBindingOverrides: {}
+        fullScopeAllowed: true
+        nodeReRegistrationTimeout: -1
+        defaultClientScopes: []
+        optionalClientScopes: []
+
+    # -- default realm roles
+    defaultRealmRoles:
+      - name: offline_access
+        description: ${role_offline-access}
+        composite: false
+        clientRole: false
+        attributes: {}
+      - name: uma_authorization
+        description: ${role_uma_authorization}
+        composite: false
+        clientRole: false
+        attributes: {}
+      - name: user
+        description: User privileges
+        composite: false
+        clientRole: false
+        attributes: {}
+      - name: default-roles-{{ .Values.keycloak.realm.name }}
+        description: ${role_default-roles}
+        composite: true
+        composites:
+          realm:
+            - offline_access
+            - uma_authorization
+          client:
+            account:
+              - view-profile
+              - manage-account
+        clientRole: false
+        attributes: {}
+    # -- extra realm roles to be added to the realm
+    extraRealmRoles: []
+
+    defaultGroups:
+      - name: admin
+        path: /admin
+        realmRoles:
+          - user
+          - default-roles-{{ .Values.keycloak.realm.name }}
+      - name: consumer
+        path: /consumer
+        realmRoles:
+          - user
+          - default-roles-{{ .Values.keycloak.realm.name }}
+    extraGroups: []
+
+    defaultDefaultClientScopes:
+      - acr
+      - roles
+      - email
+      - web-origins
+      - profile
+    extraDefaultClientScopes: []
+
+    defaultOptionalClientScopes:
+      - microprofile-jwt
+      - phone
+      - address
+      - offline_access
+    extraOptionalClientScopes: []
+
+    defaultKeyProviders:
+      - name: ecdh-generated
+        providerId: ecdh-generated
+        subComponents: {}
+        config:
+          ecGenerateCertificate: ["false"]
+          active: ["true"]
+          priority: ["0"]
+          ecdhAlgorithm: ["ECDH-ES"]
+          ecdhEllipticCurveKey: ["P-256"]
+          enabled: ["true"]
+    extraKeyProviders: []
+
+    # -- Map of verifiable credentials supported by the realm. Each key is the
+    # credential (and ClientScope) name. The chart renders one ClientScope per
+    # entry with protocol "oid4vc" and the entry's `attributes` attached to it.
+    # Attribute keys are auto-prefixed with `vc.` if the user didn't already.
+    # Set `clientScope.create: false` to skip ClientScope generation for an entry.
+    #
+    # ref: https://github.com/keycloak/keycloak/blob/26.6.2/server-spi-private/src/main/java/org/keycloak/models/oid4vci/CredentialScopeModel.java
+    # NOTE: this model is the post-26.4 redesign (PR keycloak#39768). The pre-26.4
+    # `vc.{name}.*` realm-attribute scheme and `components.CredentialBuilder`
+    # block were removed. Format strings also changed: `jwt_vc` -> `jwt_vc_json`,
+    # `vc+sd-jwt` -> `dc+sd-jwt`.
+    #
+    # verifiableCredentials:
+    #   LegalPersonCredential:
+    #     attributes:
+    #       # -- VC format (e.g. "dc+sd-jwt", "jwt_vc_json"). Maps to vc.format
+    #       format: "dc+sd-jwt"
+    #       # -- VC type URI. Maps to vc.verifiable_credential_type (drives the
+    #       # SD-JWT `vct` claim and the metadata `vct` field). When
+    #       # `supported_credential_types` is not set explicitly below, the
+    #       # template uses this same value for it (which drives the
+    #       # JWT_VC_JSON `type` array and the metadata `credential_definition.type`).
+    #       # Set `supported_credential_types` explicitly only if you need a
+    #       # different VCT in the JWT_VC_JSON `type` array.
+    #       verifiable_credential_type: "LegalPersonCredential"
+    #       # -- Signing algorithm. Maps to vc.credential_signing_alg
+    #       credential_signing_alg: "ES256"
+    #       # -- `typ` of the JWS header. Maps to vc.credential_build_config.token_jws_type
+    #       credential_build_config.token_jws_type: "vc+sd-jwt"
+    #       # -- Claims kept disclosed in the SD-JWT. KC 26.4+ enforces a "red list"
+    #       # of standard claims that must NOT be undisclosed (iss, iat, nbf, exp,
+    #       # cnf, vct, status). Always include those if you override this list,
+    #       # otherwise issuance fails with `UndisclosedClaims contains red listed
+    #       # claim names`.
+    #       credential_build_config.sd_jwt.visible_claims: "iss,iat,nbf,exp,cnf,vct,status,roles,email"
+    #       # -- Number of SD-JWT decoys
+    #       sd_jwt.number_of_decoys: "3"
+    #       # -- Whether holder binding is required
+    #       binding_required: "true"
+    #       # -- Allowed proof types (CSV)
+    #       binding_required_proof_types: "jwt"
+    #     clientScope:
+    #       create: true
+    #     # -- protocolMappers belong to this scope only. KC 26.4+ removed the
+    #     # legacy `supportedCredentialTypes` filter; mapper-to-VC association
+    #     # is now structural. Renamed: `subjectProperty` -> `claim.name`.
+    #     protocolMappers:
+    #       - name: context-mapper
+    #         protocol: oid4vc
+    #         protocolMapper: oid4vc-context-mapper
+    #         config:
+    #           context: https://www.w3.org/2018/credentials/v1
+    #       - name: email-mapper
+    #         protocol: oid4vc
+    #         protocolMapper: oid4vc-user-attribute-mapper
+    #         config:
+    #           claim.name: email
+    #           userAttribute: email
+    #       - name: role-mapper
+    #         protocol: oid4vc
+    #         protocolMapper: oid4vc-target-role-mapper
+    #         config:
+    #           claim.name: roles
+    #           clientId: did:web:my-client.example.org
+    verifiableCredentials: {}
+
+    # -- Wallet preset — opinionated, off by default. Turn `enabled` on to
+    # ship a realm with the OIDC clients that Lissi (iOS/Android) and the
+    # EUDI Reference Wallet (iOS/Android) need. Every wallet-specific value
+    # below has a default; override any leaf without redefining the whole
+    # client (e.g. `wallets.lissi.clientId: foo` changes just that field).
+    #
+    # This flag DOES NOT define the credentials the realm issues — that is
+    # the deployer's job via `keycloak.realm.verifiableCredentials` above
+    # (each entry there becomes an OID4VC client scope rendered by
+    # `dsc.vcClientScopes`).
+    wallets:
+      # -- Master toggle. When true, the chart adds the Lissi + EUDI public
+      # OIDC clients (see `lissi.*` / `eudi.*` below). It does NOT touch
+      # `verifiableCredentials` — if you want SD-JWT VC issuance to work,
+      # declare the credentials there as well.
+      enabled: false
+      # -- Global flag. When true, users in `keycloak.realm.users` that do
+      # NOT already declare their own `verifiableCredentials` get an
+      # auto-populated array with the name of every entry in
+      # `keycloak.realm.verifiableCredentials`. Keycloak then auto-issues
+      # those credentials at first login, avoiding the manual "Issue
+      # credential" admin step. Users that DO declare an explicit
+      # `verifiableCredentials` array are left untouched — set it to `[]`
+      # to opt that user out entirely. If `verifiableCredentials` is empty,
+      # turning this flag on is a no-op.
+      issueCredentialsToUsers: false
+      # -- Lissi defaults. The clientId is what the Lissi iOS/Android app
+      # currently looks for in the realm — override only if Lissi rotates it.
+      lissi:
+        clientId: 9c481dc3-2ad0-4fe0-881d-c32ad02fe0fc
+        name: "Lissi ID Wallet"
+        description: "Hardcoded clientId expected by the Lissi ID Wallet (iOS/Android)."
+        redirectUri: https://oob.lissi.io/vci-cb
+        attributes:
+          oid4vci.enabled: "true"
+          post.logout.redirect.uris: "+"
+          pkce.code.challenge.method: "S256"
+      # -- EUDI Reference Wallet (.DEV variant) defaults. PAR + DPoP + PKCE
+      # S256 are mandatory for the wallet's OID4VCI flow.
+      eudi:
+        clientId: wallet-dev
+        name: "EUDI Reference Wallet (dev)"
+        description: "Public client used by EUDI Reference Wallet (.DEV variant). PKCE + PAR + DPoP-bound access tokens."
+        redirectUri: eu.europa.ec.euidi://authorization
+        attributes:
+          oid4vci.enabled: "true"
+          post.logout.redirect.uris: "+"
+          pkce.code.challenge.method: "S256"
+          require.pushed.authorization.requests: "true"
+          dpop.bound.access.tokens: "true"
+
+  # -- configuration for the signing key to be used for issuing credentials
+  # signingKey:
+  # -- path to the keystore containing the signing key
+  # storePath:
+  # -- password for the keystore containing the signing key
+  # storePassword:
+  # -- alias of the signing key
+  # keyAlias:
+  # -- password of the signing key
+  # keyPassword:
+  # -- algorithm of the signing key
+  # keyAlgorithm:
+  # -- did that the key belongs to
+  # did:
+
+## configuration of the tm-forum-api - see https://github.com/FIWARE/helm-charts/tree/main/charts/tm-forum-api for details
+tm-forum-api:
+  # -- should it be enabled? set to false if one outside the chart is used.
+  enabled: true
+  # -- All TM Forum APIs in a single deployment, using the all-in-one image. This is recommended for testing and development, but not for production use. When set to false, every API will be deployed separately, allowing for more flexibility and scalability.
+  allInOne:
+    enabled: false
+
+  # -- distributed-tracing configuration for the tm-forum-api subchart.
+  # tm-forum-api is a Java application that supports the standard
+  # OpenTelemetry SDK environment variables. Because tm-forum-api is a
+  # third-party subchart whose templates are not owned by this umbrella
+  # chart, tracing is wired through the subchart's
+  # `defaultConfig.additionalEnvVars` extension point. The SDK disable
+  # flag (`OTEL_SDK_DISABLED`) is set to `true` by default so tracing has
+  # no runtime effect until explicitly enabled. To activate tracing,
+  # override the env vars below (or pass
+  # `--set tm-forum-api.defaultConfig.additionalEnvVars[4].value=false`)
+  # together with `--set tracing.enabled=true`.
+  tracing:
+    # -- toggle OpenTelemetry tracing on the tm-forum-api workload. Leave
+    # unset (default) to inherit `tracing.enabled` from the global
+    # block; set to `true` / `false` to override.
+    enabled:
+    # -- logical service name exposed as `OTEL_SERVICE_NAME` and recorded
+    # as the service identity on every span emitted by tm-forum-api.
+    serviceName: tm-forum-api
+
+  ## configuration to be used by every api-deployment if nothing specific is provided.
+  defaultConfig:
+    # --  ngsi-ld broker connection information
+    ngsiLd:
+      # -- address of the broker
+      url: http://data-service-scorpio:9090
+    contextUrl: https://raw.githubusercontent.com/SEAMWARE/fdsc-edc/refs/heads/main/schemas/odrl-context.jsonld
+    additionalEnvVars:
+      - name: API_EXTENSION_ENABLED
+        value: "true"
+      - name: GENERAL_NGSILDORQUERYVALUE
+        value: ","
+      - name: GENERAL_NGSILDORQUERYKEY
+        value: ","
+      - name: GENERAL_ENCLOSEQUERY
+        value: "false"
+      # -- OpenTelemetry SDK disable flag. Set to "false" to enable
+      # tracing. When "true" the OTEL SDK is completely deactivated so
+      # the remaining OTEL_* vars below are inert.
+      - name: OTEL_SDK_DISABLED
+        value: "true"
+      # -- OTEL service name. Override via
+      # `tm-forum-api.tracing.serviceName`.
+      - name: OTEL_SERVICE_NAME
+        value: "tm-forum-api"
+      # -- OTLP endpoint. Adjust to match your release name or external
+      # collector.
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: ""
+      # -- OTLP protocol (`grpc` | `http/protobuf`).
+      - name: OTEL_EXPORTER_OTLP_PROTOCOL
+        value: "grpc"
+      # -- trace sampler name.
+      - name: OTEL_TRACES_SAMPLER
+        value: "parentbased_traceidratio"
+      # -- trace sampler argument (sampling probability).
+      - name: OTEL_TRACES_SAMPLER_ARG
+        value: "1.0"
+      # -- propagators for distributed context propagation.
+      - name: OTEL_PROPAGATORS
+        value: "tracecontext,baggage"
+      # -- disable metrics exporter (traces-only configuration).
+      - name: OTEL_METRICS_EXPORTER
+        value: "none"
+      # -- disable logs exporter (traces-only configuration).
+      - name: OTEL_LOGS_EXPORTER
+        value: "none"
+  # enable the api proxy
+  apiProxy:
+    enabled: true
+    image:
+      tag: distroless-v1.27-latest
+    service:
+      # -- name to be used for the proxy service.
+      nameOverride: tm-forum-api
+
+  # -- list of apis to be deployed
+  # -- every api needs to define a name and image. Basepath is required when routes or ingress will be enabled. Beside that, they can overwrite the default-config by using the same keys.
+  # -- be aware: when you change the image repositrory or the tag for an api, you have to provide both values for the changes to take effect
+  apis:
+    - name: party-catalog
+      image: tmforum-party-catalog
+      basePath: /tmf-api/party/v4
+
+    - name: customer-bill-management
+      image: tmforum-customer-bill-management
+      basePath: /tmf-api/customerBillManagement/v4
+
+    - name: customer-management
+      image: tmforum-customer-management
+      basePath: /tmf-api/customerManagement/v4
+
+    - name: product-catalog
+      image: tmforum-product-catalog
+      basePath: /tmf-api/productCatalogManagement/v4
+
+    - name: product-inventory
+      image: tmforum-product-inventory
+      basePath: /tmf-api/productInventory/v4
+
+    - name: product-ordering-management
+      image: tmforum-product-ordering-management
+      basePath: /tmf-api/productOrderingManagement/v4
+
+    - name: resource-catalog
+      image: tmforum-resource-catalog
+      basePath: /tmf-api/resourceCatalog/v4
+
+    - name: resource-function-activation
+      image: tmforum-resource-function-activation
+      basePath: /tmf-api/resourceFunctionActivation/v4
+
+    - name: resource-inventory
+      image: tmforum-resource-inventory
+      basePath: /tmf-api/resourceInventoryManagement/v4
+
+    - name: service-catalog
+      image: tmforum-service-catalog
+      basePath: /tmf-api/serviceCatalogManagement/v4
+
+    - name: agreement
+      image: tmforum-agreement
+      basePath: /tmf-api/agreementManagement/v4
+
+    - name: usage-management
+      image: tmforum-usage-management
+      basePath: /tmf-api/usageManagement/v4
+
+    - name: quote
+      image: tmforum-quote
+      basePath: /tmf-api/quote/v4
+
+    - name: account
+      image: tmforum-account
+      basePath: /tmf-api/accountManagement/v4
+
+  # redis caching
+  redis:
+    enabled: false
+
+  registration:
+    enabled: true
+    # -- name to be used for the registration jobs
+    name: tmf-api-registration
+    annotations:
+      "helm.sh/hook": post-install
+      "helm.sh/hook-weight": "0"
+      "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    image:
+      repository: quay.io/curl/curl
+      tag: 8.1.2
+      pullPolicy: IfNotPresent
+    command: [ /bin/sh, -c, /bin/init.sh ]
+    extraEnvVars: []
+    extraVolumes: []
+    extraVolumeMounts: []
+    backoffLimit: 10
+    restartPolicy: Never
+    # -- configuration to register the dataplane at the credentials-config-service
+    ccs:
+      # -- endpoint of the ccs to regsiter at
+      endpoint: http://verifier:8090
+      # -- service id of the data-service to be used
+      id: tmf-api
+      # -- default scope to be created for the data plane
+      defaultOidcScope:
+        # -- name of the scope
+        name: default
+        # -- name of the default credential to be configured
+        credentialTypes:
+          - VerifiableCredential
+        # -- needs to be updated for the concrete dataspace
+        trustedParticipantsLists: http://tir.trust-anchor.org
+        trustedIssuersLists: http://trusted-issuers-list:8080
+
+## configuration of rainbow to provide integration with the Dataspace Protocol
+rainbow:
+  # -- should rainbow be enabled
+  enabled: false
+  # -- database configuration of rainbow
+  db:
+    # -- host of the database to be used
+    url:
+    # -- user to be used when accesing the database
+    user:
+    # -- secret containing the password for the database
+    existingSecret:
+    # -- key of the password inside that secret
+    passwordKey:
+  # -- configuration for external access to rainbow
+  ingress:
+    # -- should the ingress be enabled
+    enabled: false
+    # -- annotations to be added to the ingress
+    annotations: {}
+      # kubernetes.io/ingress.class: "ambassador"
+      ## example annotations, allowing cert-manager to automatically create tls-certs and forcing everything to use ssl.
+      # kubernetes.io/tls-acme: "true"
+      # ingress.kubernetes.io/ssl-redirect: "true"
+    # -- all hosts to be provided
+    hosts: []
+      ## provide a hosts and the paths that should be available
+      # - host: localhost
+      # paths:
+      # - /
+    # -- configure the ingress' tls
+    tls: []
+      # - secretName: rainbow-tls
+      # hosts:
+      # - rainbow.fiware.org
+  # -- configuration of service access to rainbow
+  service:
+    # -- service type to be used
+    serviceType: ClusterIP
+    # -- port of the service
+    port: 8080
+  # -- configuration to register rainbow at the credentials-config-service
+  ccs:
+    # -- should the registration at the credentials-config-service be enabled
+    enabled: false
+    # -- endpoint of the ccs to regsiter at
+    endpoint: http://verifier:8090
+    # -- configmap to get the registration information from
+    configMap: rainbow-registration
+    # -- service id of the data-service to be used
+    id: tpp-service
+
+## configuration of the tm-forum-api - see https://github.com/FIWARE/helm-charts/tree/main/charts/contract-management for details
+contract-management:
+  # -- should it be enabled? set to false if one outside the chart is used.
+  enabled: true
+  fullnameOverride: contract-management
+  # -- distributed-tracing configuration for the contract-management subchart.
+  # contract-management is a Micronaut (Java) application that supports the
+  # standard OpenTelemetry SDK environment variables. Because
+  # contract-management is a third-party subchart whose templates are not
+  # owned by this umbrella chart, tracing is wired through the subchart's
+  # `additionalEnvVars` extension point. The SDK disable flag
+  # (`OTEL_SDK_DISABLED`) is set to `true` by default so tracing has no
+  # runtime effect until explicitly enabled. To activate tracing, override
+  # the env vars below (or pass
+  # `--set contract-management.additionalEnvVars[0].value=false`)
+  # together with `--set tracing.enabled=true`.
+  tracing:
+    # -- toggle OpenTelemetry tracing on the contract-management workload.
+    # Leave unset (default) to inherit `tracing.enabled` from the global
+    # block; set to `true` / `false` to override.
+    enabled:
+    # -- logical service name exposed as `OTEL_SERVICE_NAME` and recorded
+    # as the service identity on every span emitted by contract-management.
+    serviceName: contract-management
+  til:
+    credentialType: OperatorCredential
+  services:
+    ## Config for Trusted Issuers List
+    trusted-issuers-list:
+      ## URL of the Trusted Issuers List Service
+      url: http://trusted-issuers-list:8080
+    ## Config for the TM Forum Service hosting the APIs
+    product-order:
+      ## URL of the TM Forum Service hosting the Product Ordering API
+      url: http://tm-forum-api:8080
+    party:
+      ## URL of the TM Forum Service hosting the Party API
+      url: http://tm-forum-api:8080
+    product-catalog:
+      ## URL of the TM Forum Service hosting the Product Catalog API
+      url: http://tm-forum-api:8080
+    service-catalog:
+      ## URL of the TM Forum Service hosting the Service Catalog API
+      url: http://tm-forum-api:8080
+    tmforum-agreement-api:
+      ## URL of the TM Forum Service hosting the Agreement API
+      url: http://tm-forum-api:8080
+    quote:
+      ## URL of the TM Forum Service hosting the Quote API
+      url: http://tm-forum-api:8080
+    rainbow:
+      ## URL for the Rainbow service
+      url: http://rainbow:8080
+    odrl:
+      ## URL to the ODRL-PAP
+      url: http://odrl-pap:8080
+  # -- additional environment variables for the contract-management container.
+  # The OpenTelemetry SDK vars below are included by default with
+  # `OTEL_SDK_DISABLED=true` so the SDK skips initialisation. When
+  # overriding, include all entries below to keep tracing functional
+  # (adjust the endpoint to match your release name or external collector):
+  #   - name: OTEL_SDK_DISABLED
+  #     value: "false"
+  #   - name: OTEL_EXPORTER_OTLP_ENDPOINT
+  #     value: "http://<release>-opentelemetry-collector:4317"
+  additionalEnvVars:
+    # -- OpenTelemetry SDK disable flag. Set to "false" to enable
+    # tracing. When "true" the OTEL SDK is completely deactivated so
+    # the remaining OTEL_* vars below are inert.
+    - name: OTEL_SDK_DISABLED
+      value: "true"
+    # -- OTEL service name. Override via
+    # `contract-management.tracing.serviceName`.
+    - name: OTEL_SERVICE_NAME
+      value: "contract-management"
+    # -- OTLP endpoint. Adjust to match your release name or external
+    # collector.
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: ""
+    # -- OTLP protocol (`grpc` | `http/protobuf`).
+    - name: OTEL_EXPORTER_OTLP_PROTOCOL
+      value: "grpc"
+    # -- trace sampler name.
+    - name: OTEL_TRACES_SAMPLER
+      value: "parentbased_traceidratio"
+    # -- trace sampler argument (sampling probability).
+    - name: OTEL_TRACES_SAMPLER_ARG
+      value: "1.0"
+    # -- propagators for distributed context propagation.
+    - name: OTEL_PROPAGATORS
+      value: "tracecontext,baggage"
+    # -- disable metrics exporter (traces-only configuration).
+    - name: OTEL_METRICS_EXPORTER
+      value: "none"
+    # -- disable logs exporter (traces-only configuration).
+    - name: OTEL_LOGS_EXPORTER
+      value: "none"
+
+# -- configuration for the did-helper, see https://github.com/wistefan/did-helper
+did:
+  enabled: false
+
+# -- configuration for registering a participant at the til. Allows to preconfigure trust-relationships on deployment
+registration:
+  enabled: false
+  configMap: til-registration
+  prepScript: ""
+  image:
+    repository: quay.io/curl/curl
+    tag: 8.1.2
+    pullPolicy: IfNotPresent
+  command: [ /bin/sh, -c, /bin/init.sh ]
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+  extraEnvVars: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  # issuer:
+  # - did: ${DID}
+  #   credentialTypes:
+  #     - LegalPersonCredential
+  #     - OperatorCredential
+  issuer: []
+
+# -- configuration for the .well-known/data-space-configuration endpoint document
+dataSpaceConfig:
+  enabled: false
+
+  # -- Kubernetes Service type
+  serviceType: ClusterIP
+
+  # -- Kubernetes Service port
+  port: 3002
+
+  # -- Supported data models by the service (array of links to JSON schemas)
+  supportedModels: []
+
+  # -- Supported protocols (e.g.: http,https)
+  supportedProtocols: []
+
+  # -- Supported authentication protocols (e.g.: oid4vp)
+  authenticationProtocols: []
+
+## Installation of the mongo-operator - see https://github.com/mongodb/helm-charts/tree/main/charts/community-operator
+mongo-operator:
+  # -- should the mongo-operator be installed
+  enabled: false
+
+## Usage of the mongo-operator - see https://github.com/mongodb/mongodb-kubernetes-operator
+managedMongo:
+  # -- should it be enabled?
+  enabled: false
+  # -- spec as defined in https://github.com/mongodb/helm-charts/tree/main/charts/community-operator-crds
+  spec:
+    additionalMongodConfig:
+      storage.wiredTiger.engineConfig.journalCompressor: zlib
+
+# -- configuration for the marketplace components
+marketplace:
+  enabled: false
+
+  # -- should random passwords for the database connection of marketplace components be generated in the cluster.
+  # When `true` (and on `helm install` only) the chart creates `mongodb-admin-password`, `mongodb-charging-password`
+  # and `mongodb-belp-password` Secrets with random values. The Secrets are annotated with
+  # `helm.sh/resource-policy: keep` so they survive `helm upgrade` and `helm uninstall` and the passwords are
+  # never rotated by Helm. This is convenient for local/demo deployments but NOT recommended for production:
+  # since the Secrets are annotated as kept, Helm will not adopt or update them, and re-installs may collide
+  # with stale Secrets. For production, set this to `false` and provide the three Secrets externally
+  # (e.g. via External Secrets Operator, Sealed Secrets, SOPS, or an out-of-band `kubectl apply`).
+  generatePasswords: true
+
+  # -- distributed-tracing configuration for the marketplace workload.
+  # Because marketplace (business-api-ecosystem) is a third-party subchart
+  # whose templates are not owned by this umbrella chart, tracing is wired
+  # through the subchart's extension points (`extraEnvVars` for the Charging
+  # Backend and `additionalEnvVars` for the Logic Proxy). The SDK disable
+  # flag (`OTEL_SDK_DISABLED`) is set to `true` by default so tracing has no
+  # runtime effect until explicitly enabled. To activate tracing, override
+  # the env vars below (or pass
+  # `--set marketplace.bizEcosystemChargingBackend.extraEnvVars[0].value=false`)
+  # together with `--set tracing.enabled=true`.
+  tracing:
+    # -- toggle OpenTelemetry tracing on the marketplace workload.
+    # Leave unset (default) to inherit `tracing.enabled` from the global
+    # block; set to `true` / `false` to override.
+    enabled:
+    # -- logical service name exposed as `OTEL_SERVICE_NAME` and recorded
+    # as the service identity on every span emitted by marketplace components.
+    serviceName: marketplace
+
+  # -- should the tmforum deployed together with the marketplace?
+  bizEcosystemApis:
+    enabled: false
+  # -- should RSS be enabled?
+  bizEcosystemRss:
+    enabled: false
+  # -- should vc based auth enabled?
+  siop:
+    enabled: true
+    # -- should the market place automatically registered in the credentials config service?
+    ccs:
+      enabled: false
+    # -- paths to the verifier
+    verifier:
+      qrCodePath: /api/v2/loginQR
+      tokenPath: /token
+      jwksPath: /.well-known/jwks
+    # -- roles allowed by the market
+    allowedRoles:
+      - seller
+      - customer
+      - admin
+
+  # -- configuration for the charging backend
+  bizEcosystemChargingBackend:
+    existingSecret: mongodb-charging-password
+
+    # -- max size to be used for the market
+    maxUploadSize: "5242880"
+
+    serviceAccount:
+      create: false
+
+
+    # -- should plugin support be enabled
+    plugins:
+      enabled: false
+
+    media:
+      enabled: false
+
+    port: 8006
+
+    loglevel: debug
+
+    payment:
+      method: None
+
+    backup:
+      enabled: false
+
+    initContainers: false
+    propagateToken: true
+    basePath: /opt/business-ecosystem-charging-backend
+    token:
+      enabled: false
+
+    db:
+      host: mongodb-svc
+      database: charging_db
+      user: charging
+      secretKey: password
+
+    # -- additional environment variables for the Charging Backend container.
+    # The OpenTelemetry SDK vars below are included by default with
+    # `OTEL_SDK_DISABLED=true` so the SDK skips initialisation. When
+    # overriding, include all entries below to keep tracing functional
+    # (adjust the endpoint to match your release name or external collector):
+    #   - name: OTEL_SDK_DISABLED
+    #     value: "false"
+    #   - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    #     value: "http://<release>-opentelemetry-collector:4317"
+    extraEnvVars:
+      # -- OpenTelemetry SDK disable flag. Set to "false" to enable
+      # tracing. When "true" the OTEL SDK is completely deactivated so
+      # the remaining OTEL_* vars below are inert.
+      - name: OTEL_SDK_DISABLED
+        value: "true"
+      # -- OTEL service name. Override via
+      # `marketplace.tracing.serviceName`.
+      - name: OTEL_SERVICE_NAME
+        value: "marketplace"
+      # -- OTLP endpoint. Adjust to match your release name or external
+      # collector.
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: ""
+      # -- OTLP protocol (`grpc` | `http/protobuf`).
+      - name: OTEL_EXPORTER_OTLP_PROTOCOL
+        value: "grpc"
+      # -- trace sampler name.
+      - name: OTEL_TRACES_SAMPLER
+        value: "parentbased_traceidratio"
+      # -- trace sampler argument (sampling probability).
+      - name: OTEL_TRACES_SAMPLER_ARG
+        value: "1.0"
+      # -- propagators for distributed context propagation.
+      - name: OTEL_PROPAGATORS
+        value: "tracecontext,baggage"
+      # -- disable metrics exporter (traces-only configuration).
+      - name: OTEL_METRICS_EXPORTER
+        value: "none"
+      # -- disable logs exporter (traces-only configuration).
+      - name: OTEL_LOGS_EXPORTER
+        value: "none"
+
+  oauth:
+    provider: "vc"
+
+  # -- configuration for the logic proxy
+  bizEcosystemLogicProxy:
+    serviceAccount:
+      create: true
+
+    existingSecret: mongodb-belp-password
+
+    port: 8004
+    nodeEnvironment: production
+
+    # -- db config
+    db:
+      host: mongodb-svc
+      database: belp_db
+      user: belp
+      secretKey: password
+    basePath: /opt/business-ecosystem-logic-proxy
+
+    externalIdp:
+      enabled: true
+    initContainers: false
+    propagateToken: true
+
+    # -- additional environment variables for the Logic Proxy container.
+    # The OpenTelemetry SDK vars below are included by default with
+    # `OTEL_SDK_DISABLED=true` so the SDK skips initialisation. When
+    # overriding, include all entries below to keep tracing functional
+    # (adjust the endpoint to match your release name or external collector):
+    #   - name: OTEL_SDK_DISABLED
+    #     value: "false"
+    #   - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    #     value: "http://<release>-opentelemetry-collector:4317"
+    additionalEnvVars:
+      # -- OpenTelemetry SDK disable flag. Set to "false" to enable
+      # tracing. When "true" the OTEL SDK is completely deactivated so
+      # the remaining OTEL_* vars below are inert.
+      - name: OTEL_SDK_DISABLED
+        value: "true"
+      # -- OTEL service name. Override via
+      # `marketplace.tracing.serviceName`.
+      - name: OTEL_SERVICE_NAME
+        value: "marketplace"
+      # -- OTLP endpoint. Adjust to match your release name or external
+      # collector.
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: ""
+      # -- OTLP protocol (`grpc` | `http/protobuf`).
+      - name: OTEL_EXPORTER_OTLP_PROTOCOL
+        value: "grpc"
+      # -- trace sampler name.
+      - name: OTEL_TRACES_SAMPLER
+        value: "parentbased_traceidratio"
+      # -- trace sampler argument (sampling probability).
+      - name: OTEL_TRACES_SAMPLER_ARG
+        value: "1.0"
+      # -- propagators for distributed context propagation.
+      - name: OTEL_PROPAGATORS
+        value: "tracecontext,baggage"
+      # -- disable metrics exporter (traces-only configuration).
+      - name: OTEL_METRICS_EXPORTER
+        value: "none"
+      # -- disable logs exporter (traces-only configuration).
+      - name: OTEL_LOGS_EXPORTER
+        value: "none"
+
+fdsc-edc:
+  # -- distributed-tracing configuration for the fdsc-edc workload.
+  # Because fdsc-edc is a third-party subchart whose templates are not
+  # owned by this umbrella chart, tracing is wired through the subchart's
+  # extension points (`additionalEnvVars`, `initContainers`,
+  # `additionalVolumes`, `additionalVolumeMounts`) rather than conditional
+  # template blocks. The tracing entries are included in the default
+  # `common.deployment` lists below, so every fdsc-edc deployment
+  # automatically carries the OpenTelemetry Java agent and the standard
+  # `OTEL_*` SDK env vars.  Operators who override these lists must merge
+  # the tracing entries manually; see the inline comments for a
+  # ready-to-copy snippet.
+  # NOTE: since `fdsc-edc.deployment` defaults to an empty map, no
+  # fdsc-edc pods are rendered unless the operator explicitly defines at
+  # least one deployment entry; the default chart output is therefore
+  # unaffected.
+  tracing:
+    # -- toggle OpenTelemetry tracing on the fdsc-edc workload. Leave
+    # unset (default) to inherit `tracing.enabled` from the global
+    # block; set to `true` / `false` to override.
+    enabled:
+    # -- logical service name exposed as `OTEL_SERVICE_NAME` and recorded
+    # as `service.name` on every span emitted by this workload.
+    serviceName: fdsc-edc
+    # -- OpenTelemetry Java auto-instrumentation agent configuration.
+    # The agent JAR is shipped as a container image and copied into a
+    # shared `emptyDir` volume (`otel-agent`) by an init container; the
+    # main container then mounts the volume read-only and the JVM picks
+    # the agent up via `JAVA_TOOL_OPTIONS`.
+    javaagent:
+      # -- toggle the Java agent init container. Disable to run fdsc-edc
+      # without auto-instrumentation (e.g. when the runtime already
+      # carries the agent or manual SDK instrumentation is used). Only
+      # meaningful when `fdsc-edc.tracing.enabled` (or the global
+      # `tracing.enabled`) is true.
+      enabled: true
+      # -- container image providing the OpenTelemetry Java agent JAR
+      # at `/javaagent.jar`. Pinned to a stable upstream release so
+      # behaviour is reproducible across chart versions.
+      image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.11.0"
+      # -- [Kubernetes image pull policy](https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy)
+      # for the agent init container.
+      pullPolicy: IfNotPresent
+  common:
+    ## configuration for the k8s service to access cp
+    service:
+      # -- service type
+      type: ClusterIP
+      # -- port to be used by the service
+      port: 8081
+      # -- additional annotations, if required
+      annotations: {}
+      # -- define the name of the service and avoid generating one
+      serviceNameOverride: ""
+      protocol:
+        port: 8080
+      control:
+        port: 8082
+      catalog:
+        port: 8083
+      version:
+        port: 8084
+      management:
+        port: 8085
+
+    ## deployment specific configuration
+    deployment:
+      # -- port that the cp container uses
+      port: 8080
+      # -- base path of the controlplane
+      path: /api
+      # -- initial number of target replications, can be different if autoscaling is enabled
+      replicaCount: 1
+      # -- number of old replicas to be retained
+      revisionHistoryLimit: 3
+      ## configuration of the cp update strategy
+      updateStrategy:
+        # -- type of the update
+        type: RollingUpdate
+        # -- new pods will be added gradually
+        rollingUpdate:
+          # -- number of pods that can be created above the desired amount while updating
+          maxSurge: 1
+          # -- number of pods that can be unavailable while updating
+          maxUnavailable: 0
+      # -- secrets for pulling images from a private repository
+      # ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+      imagePullSecrets: []
+      # -- additional labels for the deployment, if required
+      additionalLabels: {}
+      # -- additional annotations for the deployment, if required
+      additionalAnnotations: {}
+
+      # -- additional environment variables for the fdsc-edc containers.
+      # The subchart template renders these via
+      # `$cfg.deployment.additionalEnvVars`.
+      # When overriding, include the tracing entries below to keep
+      # OpenTelemetry instrumentation functional (adjust the endpoint to
+      # match your release name or external collector):
+      #   - name: JAVA_TOOL_OPTIONS
+      #     value: "-javaagent:/otel-agent/opentelemetry-javaagent.jar"
+      #   - name: OTEL_SERVICE_NAME
+      #     value: "fdsc-edc"
+      #   - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      #     value: "http://<release>-opentelemetry-collector:4317"
+      #   - name: OTEL_EXPORTER_OTLP_PROTOCOL
+      #     value: "grpc"
+      #   - name: OTEL_EXPORTER_OTLP_INSECURE
+      #     value: "true"
+      #   - name: OTEL_TRACES_SAMPLER
+      #     value: "parentbased_traceidratio"
+      #   - name: OTEL_TRACES_SAMPLER_ARG
+      #     value: "1.0"
+      #   - name: OTEL_PROPAGATORS
+      #     value: "tracecontext,baggage"
+      #   - name: OTEL_RESOURCE_ATTRIBUTES
+      #     value: "service.name=fdsc-edc"
+      #   - name: OTEL_METRICS_EXPORTER
+      #     value: "none"
+      #   - name: OTEL_LOGS_EXPORTER
+      #     value: "none"
+      additionalEnvVars:
+        # tracing: attach the OpenTelemetry Java agent to the JVM.
+        # Any user-provided JAVA_TOOL_OPTIONS value should be
+        # concatenated after the agent flag to preserve both.
+        - name: JAVA_TOOL_OPTIONS
+          value: "-javaagent:/otel-agent/opentelemetry-javaagent.jar"
+        # tracing: standard OpenTelemetry SDK environment variables.
+        # These mirror the settings from the global `tracing` section.
+        # Adjust `OTEL_EXPORTER_OTLP_ENDPOINT` to match your deployment
+        # – the default targets the bundled collector using a release
+        # name of "dsc"; override when the Helm release name differs or
+        # an external collector is used.
+        - name: OTEL_SERVICE_NAME
+          value: "fdsc-edc"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: ""
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: "grpc"
+        - name: OTEL_EXPORTER_OTLP_INSECURE
+          value: "true"
+        - name: OTEL_TRACES_SAMPLER
+          value: "parentbased_traceidratio"
+        - name: OTEL_TRACES_SAMPLER_ARG
+          value: "1.0"
+        - name: OTEL_PROPAGATORS
+          value: "tracecontext,baggage"
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "service.name=fdsc-edc"
+        - name: OTEL_METRICS_EXPORTER
+          value: "none"
+        - name: OTEL_LOGS_EXPORTER
+          value: "none"
+
+      # -- additional volume mounts for the fdsc-edc containers.
+      # When overriding, include the `otel-agent` entry below to keep
+      # tracing functional:
+      #   - name: otel-agent
+      #     mountPath: /otel-agent
+      #     readOnly: true
+      additionalVolumeMounts:
+        - name: credential-repo
+          mountPath: /credential-repo
+        - name: signing-key
+          mountPath: /signing-key
+        # add the self generated root ca to the system truststore
+        - name: root-ca
+          mountPath: /etc/ssl/cacert.pem
+          subPath: cacert.pem
+        - name: cacerts
+          mountPath: /usr/lib/jvm/java-21/lib/security/cacerts
+          subPath: cacerts
+        # tracing: read-only view of the `otel-agent` volume seeded
+        # by the `otel-agent-init` init container.
+        - name: otel-agent
+          mountPath: /otel-agent
+          readOnly: true
+      # -- additional volumes to be added for the fdsc-edc containers.
+      # When overriding, include the `otel-agent` entry below to keep
+      # tracing functional:
+      #   - name: otel-agent
+      #     emptyDir:
+      #       sizeLimit: 32Mi
+      additionalVolumes:
+        - name: marketplace-credential-script
+          configMap:
+            name: marketplace-credential
+            defaultMode: 0755
+        - name: ca-certs-script
+          configMap:
+            name: ca-certs-script
+            defaultMode: 0755
+        - name: credential-repo
+          emptyDir: {}
+        # -- signing-key holds the PKCS#8-converted private key, written by the convert-signing-key init container
+        - name: signing-key
+          emptyDir: {}
+        # -- signing-key-raw holds the cert-manager TLS secret whose EC key is in SEC1 format;
+        # override secretName per participant (e.g. fancy-marketplace.biz-tls or mp-operations.org-tls)
+        - name: signing-key-raw
+          secret:
+            secretName: signing-key
+        - name: root-ca
+          secret:
+            secretName: root-ca
+        - name: cacerts
+          emptyDir: {}
+        # tracing: shared scratch volume that holds the copy of
+        # `opentelemetry-javaagent.jar` produced by the init container.
+        - name: otel-agent
+          emptyDir:
+            sizeLimit: 32Mi
+      # -- init containers for the fdsc-edc deployment.
+      # When overriding, include the `otel-agent-init` entry below to
+      # keep tracing functional:
+      #   - name: otel-agent-init
+      #     image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.11.0"
+      #     imagePullPolicy: IfNotPresent
+      #     command: ["cp", "/javaagent.jar", "/otel-agent/opentelemetry-javaagent.jar"]
+      #     securityContext:
+      #       runAsNonRoot: true
+      #       readOnlyRootFilesystem: true
+      #       allowPrivilegeEscalation: false
+      #       capabilities:
+      #         drop: [ALL]
+      #     volumeMounts:
+      #       - name: otel-agent
+      #         mountPath: /otel-agent
+      initContainers:
+        # -- converts the SEC1 EC private key from the cert-manager TLS secret to PKCS#8 format
+        - name: convert-signing-key
+          image: alpine/openssl:3.5.5
+          command: ["sh", "-c", "openssl pkcs8 -topk8 -nocrypt -in /signing-key-raw/tls.key -out /signing-key/tls.key"]
+          volumeMounts:
+            - name: signing-key-raw
+              mountPath: /signing-key-raw
+            - name: signing-key
+              mountPath: /signing-key
+        # tracing: copy the OpenTelemetry Java agent JAR from the
+        # pinned upstream image into the shared `otel-agent` volume so
+        # the main container can attach it via `JAVA_TOOL_OPTIONS`.
+        - name: otel-agent-init
+          image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.11.0"
+          imagePullPolicy: IfNotPresent
+          command:
+            - cp
+            - /javaagent.jar
+            - /otel-agent/opentelemetry-javaagent.jar
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: otel-agent
+              mountPath: /otel-agent
+      ## cp resource requests and limits, we leave the default empty to make that a concious choice by the user.
+      ## for the autoscaling to make sense, you should configure this.
+      # resources:
+      # limits:
+      # cpu: 100m
+      # memory: 128Mi
+      # requests:
+      # cpu: 100m
+      # memory: 128Mi
+      # -- selector template
+      # ref: https://kubernetes.io/docs/user-guide/node-selection/
+      nodeSelector: {}
+      # -- tolerations template
+      # ref: ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+      tolerations: []
+      # -- affinity template
+      # ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+      affinity: {}
+      ## liveness and readiness probes
+      # ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
+      livenessProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 30
+      readinessProbe:
+        initialDelaySeconds: 31
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 30
+      # -- arguments to be set for the container
+      args: []
+      # -- command to be used for starting the container
+      command: []
+      # -- individual ports and paths
+
+    ## pod autoscaling configuration, use for automatic scaling of the broker pods
+    autoscaling:
+      #  -- should autoscaling be enabled for cp
+      enabled: false
+
+    # -- a list of additional env vars to be set
+    additonalEnvVars: []
+
+    config:
+      oauth:
+        tokenUrl:
+      # -- configuration for the OID4VP extension
+      oid4vp:
+        # -- should the extension be enabled
+        enabled: false
+        # -- client id to be used for OID4VP
+        clientId: "dsp"
+        # -- scope to be used
+        scope: "openid"
+        # -- trust all certificates presented at https. DO NOT USE IN PRODUCTION
+        trustAll: true
+        # -- identification of the credentials holder
+        holder:
+          # -- id of the holder
+          id:
+          # -- kid to be used for signing, often the same as id
+          kid:
+          # -- algorithm to be used for signing the verifiable presentations
+          signatureAlgorithm: ECDH-ES
+          # -- key to be used for signing the presentations
+          key:
+            # -- type of the key
+            type: EC
+            # -- path to the key
+            path: oid4vp/private-key.pem
+        # -- folder of the credentials to be used for authentication
+        credentialsFolder: oid4vp/credentials
+        # -- additional trust-anchors to be used for client identification(e.g. the verifier)
+        trustAnchorsFolder:
+        # -- claim used inside the jwts for identifying the organization
+        organizationClaim: verifiableCredential.issuer
+        # -- configuration of the proxy to be used for OID4VP authentication
+        proxy:
+          # -- should a proxy be used at all
+          enabled: false
+          # -- host of the proxy
+          host:
+          # port of the proxy
+          port:
+      # -- configuration of the test-extension. Only relevant for running conformance tests
+      testExtension:
+        # -- should it be enabled
+        enabled: false
+        # -- configuration of the test controller
+        controller:
+          # -- should the controller providing additional test endpoints be enabled
+          enabled: false
+          # -- port that the test endpoints are available at
+          port: 8687
+          # -- path that the test endpoints are available at
+          path: /tck
+        # -- configuration of the test identity service
+        identity:
+          enabled: false
+
+      # -- configuration of the TMForum extension
+      tmfExtension:
+        # -- should the extension be enabled
+        enabled: true
+        # -- address of the quote api to be used
+        quoteApi:
+        # -- address of the agreement api to be used
+        agreementApi:
+        # -- address of the product ordering api to be used
+        productOrderApi:
+        # -- address of the product catalog api to be used
+        productCatalogApi:
+        # -- address of the product inventory api to be used
+        productInventoryApi:
+        # -- address of the usage management api to be used
+        usageManagementApi:
+        # -- address of the party catalog api to be used
+        partyCatalogApi:
+        # -- should the tmforum extension for the catalog endpoint be enable
+        catalog:
+          enabled: true
+
+      # -- configuration of the transfer process extension
+      fdscTransfer:
+        # -- should it be enabled
+        enabled: true
+        # -- host to be used for offering the transfer processes
+        transferHost:
+        # -- configuration to be used in case provisioning of DCP secured resources is supported
+        dcp:
+          # -- should it be enabled
+          enabled: false
+          # -- address of the dsp-jwks endpoint
+          oid:
+            host:
+            jwksPath: /.well-known/jwks
+            openIdPath: /.well-known/openid-configuration
+
+        # -- configuration to be used in case provisioning of OID4VC secured resources is supported
+        oid4vc:
+          # -- should OID4VC provisioning be enabled
+          enabled: false
+          # -- address of the credentials config service to be used
+          credentialsConfigAddress:
+          # -- external host of the verifier to be used for OID4VP on transfers
+          verifierHost:
+          # -- internal host of the verifier to be used for OID4VP on transfers, the external one can also be reused here
+          verifierInternalHost:
+          # -- internal address of the open policy agent - to be used as PDP on the incoming routes
+          opaHost: http://localhost:8181
+          # -- host of the ODRL-PAP to register the policies
+          odrlPapHost: http://odrl-pap:8080
+        # -- configuration of the apisix to be confiugured for serving the process
+        apisix:
+          # -- address of the management api of apisix
+          address:
+          # -- token to be used as an API-Key at the mangement api
+          token:
+          # -- in case the route should use a proxy, configure it here
+          httpsProxy:
+
+      ## -- configuration of the trusted issuers list to be use in case of DCP
+      ebsiTir:
+        ## -- should an ebsi-api based tir be used?
+        enabled: false
+        ## -- address to the trusted issuers list
+        tilAddress:
+
+      ## -- configuration for dcp based authn/z
+      dcp:
+        ## -- should it be enabled
+        enabled: false
+        ## -- configuration of the default scopes for the endpoints
+        scopes:
+          ## -- scope for the catalog
+          catalog:
+          ## -- scope for interacting with the negotiation protocol
+          negotiation:
+          ## -- scope for interacting with the transfer protocol
+          transfer:
+          ## -- scope for the version endpoint
+          version:
+
+      ## -- general configuration for the edc
+      edc:
+        participant:
+          ## -- id of the participant to be used
+          id:
+        log:
+          ## -- loglevel to be used
+          level: DEBUG
+        # -- handling of edc internal json-ld resolution
+        jsonld:
+          https:
+            enabled: true
+          http:
+            enabled: trusted
+      ## -- endpoints to be provided by the edc
+      web:
+        http:
+          port: 8081
+          ## -- configuration of the dsp protocol
+          protocol:
+            path: /api/dsp
+            port: 8080
+          ## -- configuration of the control api
+          control:
+            path: /api/control
+            port: 8082
+          ## -- configuration of the catalog api
+          catalog:
+            path: /api/catalog
+            port: 8083
+          ## -- configuration of the version api
+          version:
+            path: /api/version
+            port: 8084
+          ## -- configuration of the management api
+          management:
+            path: /api/v1/management
+            port: 8085
+
+      vault:
+        hashicorp:
+          enabled: true
+          url: "http://{{ .Release.Name }}-vault:8200"
+          token: "root"
+          timeout: 30
+
+# -- vc-operator managed credentials (replacement for the legacy credentials script)
+vcCredentials:
+  # -- should vc-operator credential management be enabled
+  enabled: false
+  # -- configuration of the CredentialIssuer (Keycloak OID4VCI endpoint)
+  issuer:
+    # -- name of the CredentialIssuer resource
+    name: keycloak-issuer
+    # -- base URL of the OID4VCI issuer (e.g. http://<keycloak>:8080/realms/<realm>)
+    issuerURL: ""
+    # -- issuer implementation type ("generic" or "keycloak")
+    issuerType: keycloak
+    # -- override the token endpoint URL (required when the issuer metadata does not include token_endpoint directly)
+    tokenURL: ""
+  # -- authentication secret for the CredentialIssuer (OAuth 2.0 client credentials)
+  auth:
+    # -- name of the Secret to create
+    secretName: vc-operator-auth
+    # -- OAuth 2.0 client_id registered in Keycloak
+    clientId: ""
+    # -- OAuth 2.0 client_secret for the above client
+    clientSecret: ""
+    # -- reference to an existing secret (if set, clientId/clientSecret are ignored)
+    existingSecret: ""
+  # -- list of VerifiableCredentialRequest resources to create
+  requests: []
+    # -- name of the VCR resource
+    # - name:
+    #   -- credential type to request (must match one of the issuer's supported types)
+    #   credentialType:
+    #   -- credential format (jwt_vc_json, ldp_vc, jwt_vc, vc+sd-jwt)
+    #   format: jwt_vc_json
+    #   -- name of the target Secret for storing the credential
+    #   targetSecretName:
+    #   -- key in the target Secret (defaults to "credential")
+    #   targetSecretKey: credential
+    #   -- filename when the secret is projected as a volume (for backward compatibility)
+    #   targetFile:
+    #   -- duration before expiry to trigger renewal (e.g. 5m, 1h)
+    #   renewBefore: 5m
+    #   -- additional issuer-specific claims
+    #   additionalClaims: {}
+    #   -- holder binding configuration (enables proof-of-possession during OID4VCI issuance)
+    #   holderBinding:
+    #     -- enable holder binding for this credential request
+    #     enabled: false
+    #     -- name of the Secret to create for the holder's ECDSA P-256 private key (auto-generated with tls.key entry)
+    #     keySecretName:
+    #     -- reference to an existing Secret (if set, key generation is skipped)
+    #     existingKeySecret: ""
+    #     -- optional DID URL for the proof JWT kid header; when omitted the operator embeds the full JWK
+    #     holderDID: ""
+
+# -- vc-operator subchart configuration
+vc-operator:
+  enabled: false
+  
+identityhub:
+  enabled: false
+  image:
+    repository: "tractusx/identityhub"
+    # -- Overrides the image tag whose default is the chart appVersion
+    tag: sha-687d69f
+    # -- [Kubernetes image pull policy](https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy) to use
+    pullPolicy: IfNotPresent
+  initContainers: []
+  # -- configuration of the super user to be created in the identity hub
+  # -- the api key needs to be in form base64(<username>).<random-string>
+  superuser:
+    # -- reference to the existing secret containing the key
+    existingSecret:
+    # -- key in the secret containing the key
+    existingSecretKeyKey:
+    # -- the plain key, will be ignored if existingSecret is set
+    key:
+  livenessProbe:
+    # -- Whether to enable kubernetes [liveness-probe](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)
+    enabled: true
+    # -- seconds to wait before performing the first liveness check
+    initialDelaySeconds: 5
+    # -- this fields specifies that kubernetes should perform a liveness check every 5 seconds
+    periodSeconds: 5
+    # -- number of seconds after which the probe times out
+    timeoutSeconds: 5
+    # -- when a probe fails kubernetes will try 6 times before giving up
+    failureThreshold: 6
+    # -- number of consecutive successes for the probe to be considered successful after having failed
+    successThreshold: 1
+  readinessProbe:
+    # -- Whether to enable kubernetes [readiness-probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)
+    enabled: true
+    # -- seconds to wait before performing the first readiness check
+    initialDelaySeconds: 5
+    # -- this fields specifies that kubernetes should perform a readiness check every 5 seconds
+    periodSeconds: 5
+    # -- number of seconds after which the probe times out
+    timeoutSeconds: 5
+    # -- when a probe fails kubernetes will try 6 times before giving up
+    failureThreshold: 6
+    # -- number of consecutive successes for the probe to be considered successful after having failed
+    successThreshold: 1
+  didIngress:
+    enabled: true
+    port: did
+  # -- endpoints of the control plane
+  endpoints:
+    # -- default api for health checks, should not be added to any ingress
+    default:
+      # -- port for incoming api calls
+      port: 8081
+      # -- path for incoming api calls
+      path: /api
+    # -- management api, used by internal users, can be added to an ingress and must not be internet facing
+    identity:
+      # -- port for incoming api calls
+      port: 8082
+      # -- path for incoming api calls
+      path: /api/identity
+      # -- authentication key, must be attached to each 'X-Api-Key' request header
+      authKeyAlias:
+    # -- DCP Presentation API endpoint
+    credentials:
+      # -- port for incoming api calls
+      port: 8083
+      # -- path for incoming api calls
+      path: /api/credentials
+    # -- DID service endpoint. DID documents can be resolved from here.
+    did:
+      # -- port for incoming api calls
+      port: 8084
+      # -- path for incoming api calls
+      path: /
+    # -- STS Accounts API, used to manipulate STS accounts
+    accounts:
+      port: 8085
+      path: /api/accounts
+    # -- Version API, used to obtain exact version information about all APIs at runtime
+    version:
+      port: 8086
+      path: /.well-known/api
+    # -- STS Endpoint, used to obtain tokens
+    sts:
+      port: 8087
+      path: /api/sts
+  service:
+    # -- [Service type](https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types) to expose the running application on a set of Pods as a network service.
+    type: ClusterIP
+    annotations: {}
+  # -- additional labels for the pod
+  podLabels: {}
+  # -- additional annotations for the pod
+  podAnnotations: {}
+  # -- The [pod security context](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod) defines privilege and access control settings for a Pod within the deployment
+  podSecurityContext:
+    seccompProfile:
+      # -- Restrict a Container's Syscalls with seccomp
+      type: RuntimeDefault
+    # -- Runs all processes within a pod with a special uid
+    runAsUser: 10100
+    # -- Processes within a pod will belong to this guid
+    runAsGroup: 10100
+    # -- The owner for volumes and any files created within volumes will belong to this guid
+    fsGroup: 10100
+  # The [container security context](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container) defines privilege and access control settings for a Container within a pod
+  securityContext:
+    capabilities:
+      # -- Specifies which capabilities to drop to reduce syscall attack surface
+      drop:
+        - ALL
+      # -- Specifies which capabilities to add to issue specialized syscalls
+      add: []
+    # -- Whether the root filesystem is mounted in read-only mode
+    readOnlyRootFilesystem: true
+    # -- Controls [Privilege Escalation](https://kubernetes.io/docs/concepts/security/pod-security-policy/#privilege-escalation) enabling setuid binaries changing the effective user ID
+    allowPrivilegeEscalation: false
+    # -- Requires the container to run without root privileges
+    runAsNonRoot: true
+    # -- The container's process will run with the specified uid
+    runAsUser: 10100
+  # Extra environment variables that will be pass onto deployment pods
+  env: {}
+  #  ENV_NAME: value
+
+  # "valueFrom" environment variable references that will be added to deployment pods. Name is templated.
+  # ref: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#envvarsource-v1-core
+  envValueFrom: {}
+  #  ENV_NAME:c
+  #    configMapKeyRef:
+  #      name: configmap-name
+  #      key: value_key
+  #    secretKeyRef:
+  #      name: secret-name
+  #      key: value_key
+
+  # [Kubernetes Secret Resource](https://kubernetes.io/docs/concepts/configuration/secret/) names to load environment variables from
+  envSecretNames: []
+  #  - first-secret
+  #  - second-secret
+
+  # [Kubernetes ConfigMap Resource](https://kubernetes.io/docs/concepts/configuration/configmap/) names to load environment variables from
+  envConfigMapNames: ["identityhub-config", "identityhub-datasource-config"]
+  #  - first-config-map
+  #  - second-config-map
+
+  # -- declare where to mount [volumes](https://kubernetes.io/docs/concepts/storage/volumes/) into the container
+  volumeMounts: []
+  # -- [volume](https://kubernetes.io/docs/concepts/storage/volumes/) directories
+  volumes: []
+  # -- [resource management](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) for the container
+  resources:
+    limits:
+      cpu: 1.5
+      memory: 512Mi
+    requests:
+      cpu: 500m
+      memory: 128Mi
+  replicaCount: 1
+  autoscaling:
+    # -- Enables [horizontal pod autoscaling](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/)
+    enabled: false
+    # -- Minimal replicas if resource consumption falls below resource threshholds
+    minReplicas: 1
+    # -- Maximum replicas if resource consumption exceeds resource threshholds
+    maxReplicas: 100
+    # -- targetAverageUtilization of cpu provided to a pod
+    targetCPUUtilizationPercentage: 80
+    # -- targetAverageUtilization of memory provided to a pod
+    targetMemoryUtilizationPercentage: 80
+  # Configuration of the [Java Util Logging Facade](https://docs.oracle.com/javase/7/docs/technotes/guides/logging/overview.html)
+  logging:
+    # -- Enable logging to create .log files
+    enabled: true
+    persistence:
+      # -- Enable .log files to persist in local machine
+      enabled: false
+    # -- List of handlers to use in the logger
+    handlers:
+      - java.util.logging.ConsoleHandler
+      - java.util.logging.FileHandler
+    handlersConfig:
+      # -- Console handler configuration
+      java.util.logging.ConsoleHandler:
+        level: FINE
+        formatter: org.eclipse.tractusx.identityhub.monitor.ColorfulFormatter
+      java.util.logging.FileHandler:
+        # -- Log level of handler
+        level: FINE
+        # -- Formatter to use in handler, formatter must be set in identityhub.logging.formatters
+        formatter: org.eclipse.tractusx.identityhub.monitor.ColorfulFormatter
+        # -- Path where the log is created, must be the same path as the logging.path values
+        pattern: /app/logs/identityhub.log
+        # -- Limit of bytes to write before log file rotation
+        limit: 0
+        # -- Number of files to use in log file rotation
+        count: 1
+        # -- Append logs to the file or create new file every deployment
+        append: true
+    formatters:
+      # -- configuration of custom colorful formatter
+      org.eclipse.tractusx.identityhub.monitor.ColorfulFormatter:
+        format: "%7$s[%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS] [%4$s] %5$s%6$s%n%8$s"
+    # -- root log level
+    level: INFO
+    # -- package level control
+    # @default -- `{"org.eclipse.edc": "FINE"}`
+    logLevels:
+      org.glassfish: "OFF"
+      jdk.event: "OFF"
+      jakarta.json: "OFF"
+      org.jvnet: "OFF"
+      okhttp3.internal: "OFF"
+      org.flywaydb: "OFF"
+      org.postgresql: "OFF"
+      org.eclipse.edc: "FINE"
+      org.eclipse.tractusx: "FINE"
+    # -- path where the log resides, must be the same path as the fileHandler pattern
+    path: /app/logs
+    # -- default logging properties if logging is not enabled
+    default: |-
+      .level=INFO
+      org.eclipse.edc.level=INFO
+      handlers=java.util.logging.ConsoleHandler
+      java.util.logging.ConsoleHandler.formatter=org.eclipse.tractusx.identityhub.monitor.ColorfulFormatter
+      java.util.logging.ConsoleHandler.level=ALL
+      org.eclipse.tractusx.identityhub.monitor.ColorfulFormatter.format=%7$s[%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS] [%4$s] %5$s%6$s%n%8$s
+  # [node selector](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector) to constrain pods to nodes
+  nodeSelector: {}
+  # [tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) to configure preferred nodes
+  tolerations: []
+  # [affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity) to configure which nodes the pods can be scheduled on
+  affinity: {}
+  url:
+    # -- Explicitly declared url for reaching the dsp api (e.g. if ingresses not used)
+    protocol: ""
+    public: ""
+    readiness: ""
+  postgresql:
+    host: postgres
+    port: "5432"
+    database: "ih"
+    auth:
+      username: ih
+      password:
+      existingSecret: ih.postgres.credentials.postgresql.acid.zalan.do
+      existingSecretPasswordKey: password
+  # -- distributed-tracing configuration for the IdentityHub component.
+  # Values here override or complement the global `tracing:` block. When
+  # tracing is active the deployment gains an init container that copies
+  # the OpenTelemetry Java auto-instrumentation agent into a shared
+  # volume, mounts the volume read-only into the IdentityHub container,
+  # prepends `-javaagent:/otel-agent/opentelemetry-javaagent.jar` to
+  # `JAVA_TOOL_OPTIONS`, and receives the standard `OTEL_*` SDK
+  # environment variables rendered by the `dsc.otel.env` helper.
+  tracing:
+    # -- toggle OpenTelemetry tracing on the IdentityHub workload. Leave
+    # unset (default) to inherit `tracing.enabled` from the global
+    # block; set to `true` / `false` to override.
+    enabled:
+    # -- logical service name exposed as `OTEL_SERVICE_NAME` and recorded
+    # as `service.name` on every span emitted by this workload.
+    serviceName: identityhub
+    # -- OpenTelemetry Java auto-instrumentation agent configuration.
+    # The agent JAR is shipped as a container image and copied into a
+    # shared `emptyDir` volume (`otel-agent`) by an init container; the
+    # main container then mounts the volume read-only and the JVM picks
+    # the agent up via `JAVA_TOOL_OPTIONS`.
+    javaagent:
+      # -- toggle the Java agent init container. Disable to run the
+      # IdentityHub without auto-instrumentation (e.g. when the runtime
+      # already carries the agent or manual SDK instrumentation is
+      # used). Only meaningful when `identityhub.tracing.enabled` (or
+      # the global `tracing.enabled`) is true.
+      enabled: true
+      # -- container image providing the OpenTelemetry Java agent JAR
+      # at `/javaagent.jar`. Pinned to a stable upstream release so
+      # behaviour is reproducible across chart versions.
+      image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.11.0"
+      # -- [Kubernetes image pull policy](https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy)
+      # for the agent init container.
+      pullPolicy: IfNotPresent
+
+vault:
+  enabled: false
+  injector:
+    enabled: false
+  server:
+    dev:
+      enabled: true
+      devRootToken: "root"
+    postStart: # must be set externally!
+  hashicorp:
+    url: "http://{{ .Release.Name }}-vault:8200"
+    token: "root"
+    timeout: 30
+    healthCheck:
+      enabled: true
+      standbyOk: true
+    paths:
+      secret: /v1/secret
+      health: /v1/sys/health
+
+# -- configuration for the cert-manager component (https://github.com/cert-manager/cert-manager/blob/master/deploy/charts/cert-manager/values.yaml)
+cert-manager:
+  enabled: false
+  startupapicheck:
+    # -- Hook annotations to ensure the cert-manager webhook is ready
+    # before creating Issuers/Certificates in the post-install hooks.
+    jobAnnotations:
+      "helm.sh/hook": post-install,post-upgrade
+      "helm.sh/hook-weight": "0"
+      "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+
+# -- configuration for additional resources to be deployed for cert-manager, like ClusterIssuers
+certManagerResources:
+  # -- Toggle for deploying additional ClusterIssuers and bootstrap resources.
+  # Set to true to automate certificate infrastructure after the subchart install.
+  enabled: false
+  # -- The namespace where cert-manager is deployed.
+  # Required to place the CA Secret for the 'selfsigned' mode.
+  namespace: cert-manager
+  # -- Type of certificate issuer to configure.
+  # "selfsigned": Generates a local self-signed CA (ideal for Dev/Internal labs).
+  # "prod": Configures Let's Encrypt Production issuer (real trusted SSL).
+  type: "prod"
+  # -- Email address for ACME registration (required for "prod" mode).
+  # Let's Encrypt will send expiration notifications to this address.
+  acmeEmail: "admins@example.com"
+  # -- The Ingress Class that cert-manager will use for HTTP-01 challenges (required for "prod" mode).
+  # Must match the 'ingressClassName' of your controller (e.g., nginx, traefik).
+  ingressClass: "nginx"
+
+# -- list of extra Kubernetes manifests to deploy alongside the chart.
+# Each entry can be a string (raw YAML, supports Helm templating) or an object.
+extraManifests: []
+
+# -- dashboard for operating the FIWARE Data Space Connector
+fdsc-dashboard:
+  enabled: false
+
+prometheus:
+  enabled: false
+
+grafana:
+  enabled: false
+  
+# -- global distributed-tracing configuration used by every component that
+# supports OpenTelemetry. The values under this block are fed into the
+# `dsc.otel.env` template helper and rendered as the standard `OTEL_*`
+# environment variables on each workload. Flipping `tracing.enabled` off
+# disables tracing everywhere; per-component toggles live under each
+# subchart's `tracing:` key and default to the global value.
+tracing:
+  # -- global on/off switch for OpenTelemetry tracing across the data-space
+  # connector. When false, no `OTEL_*` env vars are injected and the
+  # `opentelemetry-collector` subchart stays disabled by default.
+  enabled: false
+  # -- OTLP exporter configuration used by every traced workload. The
+  # default endpoint targets the in-cluster OpenTelemetry Collector
+  # deployed by this umbrella chart; override to point at an external
+  # collector or directly at a backend (Tempo, Jaeger, Honeycomb, ...).
+  exporter:
+    otlp:
+      # -- OTLP endpoint the workloads export spans to. The default targets
+      # the bundled collector service
+      # (`<release>-opentelemetry-collector:4317`).
+      endpoint: ""
+      # -- OTLP protocol: `grpc` (default, port 4317) or `http/protobuf`
+      # (port 4318). Must match the collector's listening protocol.
+      protocol: "grpc"
+      # -- disable TLS on the OTLP exporter. Set to false and configure
+      # the collector / backend with certificates for production.
+      insecure: true
+  # -- trace sampler name, passed as `OTEL_TRACES_SAMPLER`. Accepts any
+  # value supported by the OpenTelemetry SDK: `always_on`, `always_off`,
+  # `traceidratio`, `parentbased_always_on`, `parentbased_traceidratio`.
+  sampler: "parentbased_traceidratio"
+  # -- argument for the sampler, passed as `OTEL_TRACES_SAMPLER_ARG`. For
+  # ratio-based samplers this is the sampling probability in [0.0, 1.0].
+  samplerArg: "1.0"
+  # -- extra resource attributes merged into `OTEL_RESOURCE_ATTRIBUTES`
+  # for every traced workload. Service-specific attributes (such as
+  # `service.name`) are added automatically by the helper.
+  resourceAttributes: {}
+  #   deployment.environment: "production"
+  #   service.namespace: "dsc"
+  # -- propagators to use, passed as `OTEL_PROPAGATORS`. Comma-separated
+  # list; see
+  # https://opentelemetry.io/docs/languages/sdk-configuration/general/#otel_propagators
+  propagators: "tracecontext,baggage"
+  # -- auto-instrumentation via the OpenTelemetry Operator. When enabled,
+  # renders an `Instrumentation` CR that the Operator's mutating webhook
+  # uses to inject language-specific agents into annotated pods. Requires
+  # `opentelemetry-operator.enabled: true` and cert-manager.
+  autoInstrumentation:
+    # -- master gate for auto-instrumentation. When true, the chart renders
+    # the `Instrumentation` CR. Pods still need the matching
+    # `instrumentation.opentelemetry.io/inject-<lang>: "true"` annotation
+    # to be instrumented.
+    enabled: false
+    # -- Java auto-instrumentation agent settings.
+    java:
+      # -- container image for the Java auto-instrumentation agent init
+      # container injected by the Operator.
+      image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.11.0"
+    # -- Python auto-instrumentation agent settings.
+    python:
+      # -- container image for the Python auto-instrumentation agent init
+      # container injected by the Operator.
+      image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:0.54b0"
+    # -- Node.js auto-instrumentation agent settings.
+    nodejs:
+      # -- container image for the Node.js auto-instrumentation agent init
+      # container injected by the Operator.
+      image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs:0.75.0"
+
+# -- values passed to the bundled `opentelemetry-operator` subchart
+# (chart: open-telemetry/opentelemetry-operator). The operator provides
+# Kubernetes-native auto-instrumentation by injecting language-specific
+# agents into annotated pods via a mutating webhook. Requires cert-manager
+# for webhook certificate management.
+opentelemetry-operator:
+  # -- toggle the bundled OpenTelemetry Operator subchart. When enabled,
+  # deploys the operator which watches for `Instrumentation` CRs and
+  # injects auto-instrumentation agents into annotated pods.
+  enabled: false
+  # -- admission webhook configuration. Both policies must be `Ignore`
+  # when the operator and workloads are deployed in the same Helm
+  # release, because the pod injection webhook (`mpod.kb.io`)
+  # intercepts ALL pod creation — including the operator's own pods —
+  # creating a circular dependency with `Fail`. On first install, pods
+  # created before the operator is ready will lack injection; a
+  # `kubectl rollout restart` of the annotated deployments resolves
+  # this. Subsequent upgrades work without restart because the operator
+  # is already running.
+  admissionWebhooks:
+    failurePolicy: Ignore
+    pods:
+      failurePolicy: Ignore
+  # -- operator manager configuration.
+  manager:
+    # -- collector image used by the operator when creating
+    # OpenTelemetryCollector CRs. Required by the chart since v0.86.0.
+    collectorImage:
+      repository: "otel/opentelemetry-collector-contrib"
+    # -- resource limits for the operator manager pod.
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+# -- values passed to the bundled `opentelemetry-collector` subchart
+# (chart: open-telemetry/opentelemetry-collector). The collector is only
+# rendered when `opentelemetry-collector.enabled` is true; by default it
+# stays off so existing deployments are unaffected. When `tracing.enabled`
+# is flipped on, operators typically also flip `opentelemetry-collector.enabled`
+# on to get an in-cluster collector reachable on port 4317/4318.
+opentelemetry-collector:
+  # -- toggle the bundled OpenTelemetry Collector subchart. Keep false
+  # when pointing `tracing.exporter.otlp.endpoint` at an external
+  # collector.
+  enabled: false
+  # -- deployment topology for the collector. Valid values are
+  # `deployment`, `daemonset`, and `statefulset`. `deployment` is the
+  # right default for a dedicated, shared collector workload.
+  mode: deployment
+  # -- number of collector replicas when `mode=deployment`.
+  replicaCount: 1
+  # -- the chart requires an image repository to be set explicitly; we
+  # use the upstream contrib image so extra exporters (Tempo, Jaeger,
+  # Honeycomb, ...) are available out of the box.
+  image:
+    repository: otel/opentelemetry-collector-contrib
+  # -- CPU / memory resources for the collector. Sized for small
+  # deployments; raise for production traffic.
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  # -- disable the subchart's auto-generated ConfigMap; the umbrella
+  # chart renders its own ConfigMap via `otel-collector-config-cm.yaml`
+  # so that the `otlp/tempo` exporter can be auto-injected when
+  # `tempo.enabled=true`.
+  configMap:
+    # -- when false, the subchart does not create a ConfigMap and instead
+    # mounts the one referenced by `existingName`.
+    create: false
+    # -- name of the externally managed ConfigMap containing the collector
+    # pipeline configuration under the `relay` key. The subchart processes
+    # this value through `tpl`, so Helm template expressions work.
+    existingName: "{{ .Release.Name }}-otel-collector-config"
+  # -- collector pipeline configuration. These values are used as the base
+  # pipeline definition; the actual ConfigMap is generated by
+  # `otel-collector-config-cm.yaml`. When `tempo.enabled=true`, an
+  # `otlp/tempo` exporter targeting the in-cluster Tempo instance is
+  # auto-injected into the exporters and the traces pipeline. See the
+  # commented-out examples below for connecting to external backends.
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: ${env:MY_POD_IP}:4317
+          http:
+            endpoint: ${env:MY_POD_IP}:4318
+    processors:
+      # -- batch processor groups spans before export to reduce network
+      # overhead. Defaults are suitable for most workloads.
+      batch:
+        send_batch_size: 512
+        timeout: 5s
+        send_batch_max_size: 1024
+      # -- filter processor drops noisy spans that are not useful for
+      # debugging (health/readiness probes, Prometheus scrapes). Uses
+      # the OTTL (OpenTelemetry Transformation Language) syntax supported
+      # by the contrib collector image.
+      filter/healthcheck:
+        error_mode: ignore
+        traces:
+          span:
+            - 'IsMatch(attributes["url.path"], ".*/health.*") or IsMatch(attributes["url.path"], ".*/ready.*") or IsMatch(attributes["url.path"], ".*/prometheus.*")'
+            - 'IsMatch(attributes["http.target"], ".*/health.*") or IsMatch(attributes["http.target"], ".*/ready.*") or IsMatch(attributes["http.target"], ".*/prometheus.*")'
+      # -- memory_limiter prevents the collector from consuming unbounded
+      # memory under load. The percentage-based limits adapt to the pod's
+      # memory limit automatically.
+      memory_limiter:
+        check_interval: 5s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      # -- resource processor injects deployment-level attributes into
+      # every span. Add custom attributes here for your organisation.
+      resource:
+        attributes:
+          - key: deployment.environment
+            value: "development"
+            action: upsert
+          - key: service.namespace
+            value: "fiware-dsc"
+            action: upsert
+    exporters:
+      # -- debug exporter writes spans to the collector's stdout. Safe
+      # default that works out of the box with no external dependencies.
+      # Set `verbosity: detailed` to see full span payloads.
+      debug:
+        verbosity: basic
+      ## -------------------------------------------------------------------
+      ## Example: OTLP exporter to an external backend
+      ## Uncomment and configure ONE of the blocks below (or add your own).
+      ## Then add the exporter name to `service.pipelines.traces.exporters`.
+      ## -------------------------------------------------------------------
+      ##
+      ## -- OTLP exporter to Grafana Tempo (gRPC).
+      ## Replace <TEMPO_HOST> with the Tempo distributor address.
+      # otlp/tempo:
+      #   endpoint: "<TEMPO_HOST>:4317"
+      #   tls:
+      #     insecure: true
+      ##
+      ## -- OTLP exporter to a generic Jaeger backend (gRPC).
+      ## Jaeger v2+ supports native OTLP ingestion on port 4317.
+      # otlp/jaeger:
+      #   endpoint: "<JAEGER_HOST>:4317"
+      #   tls:
+      #     insecure: true
+      ##
+      ## -- OTLP exporter to Honeycomb (gRPC with API key header).
+      # otlp/honeycomb:
+      #   endpoint: "api.honeycomb.io:443"
+      #   headers:
+      #     "x-honeycomb-team": "<YOUR_HONEYCOMB_API_KEY>"
+      #     "x-honeycomb-dataset": "fiware-dsc"
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, filter/healthcheck, resource, batch]
+          exporters: [debug]
+          ## To export to a backend, add its exporter name to the list:
+          ## exporters: [debug, otlp/tempo]
+  ## -------------------------------------------------------------------
+  ## Collector configuration examples
+  ## -------------------------------------------------------------------
+  ##
+  ## 1) Point at an external Grafana Tempo instance:
+  ##
+  ##    opentelemetry-collector:
+  ##      enabled: true
+  ##      config:
+  ##        exporters:
+  ##          otlp/tempo:
+  ##            endpoint: "tempo-distributor.monitoring:4317"
+  ##            tls:
+  ##              insecure: true
+  ##        service:
+  ##          pipelines:
+  ##            traces:
+  ##              receivers: [otlp]
+  ##              processors: [memory_limiter, resource, batch]
+  ##              exporters: [debug, otlp/tempo]
+  ##
+  ## 2) Enable the Jaeger receiver (Thrift Compact on port 6831) in
+  ##    addition to OTLP so legacy Jaeger-instrumented services can
+  ##    report traces to the same collector:
+  ##
+  ##    opentelemetry-collector:
+  ##      enabled: true
+  ##      config:
+  ##        receivers:
+  ##          jaeger:
+  ##            protocols:
+  ##              thrift_compact:
+  ##                endpoint: ${env:MY_POD_IP}:6831
+  ##        service:
+  ##          pipelines:
+  ##            traces:
+  ##              receivers: [otlp, jaeger]
+  ##              processors: [memory_limiter, resource, batch]
+  ##              exporters: [debug]
+  ##
+  ## 3) Switch workloads to HTTP/protobuf instead of gRPC:
+  ##
+  ##    tracing:
+  ##      enabled: true
+  ##      exporter:
+  ##        otlp:
+  ##          protocol: "http/protobuf"
+  ##          endpoint: "http://<release>-opentelemetry-collector:4318"
+  ##
+  ##    The collector already listens on both 4317 (gRPC) and 4318 (HTTP)
+  ##    by default, so only the workload-side values need to change.
+
+# -- values passed to the bundled `tempo` subchart
+# (chart: grafana/tempo). Tempo provides an in-cluster trace storage backend
+# that the OpenTelemetry Collector can export spans to. When `tempo.enabled`
+# is true a Tempo single-binary instance is deployed; operators can query
+# stored traces via Grafana or the Tempo HTTP API on port 3200.
+tempo:
+  # -- toggle the bundled Grafana Tempo subchart. When enabled, deploys a
+  # single-binary Tempo instance for trace storage. Keep false when using
+  # an external trace backend (e.g. hosted Tempo, Jaeger, Honeycomb).
+  enabled: false
+  tempo:
+    # -- trace retention period. Traces older than this value are
+    # automatically purged. Increase for production workloads.
+    retention: 48h
+    # -- receiver configuration for Tempo. Only OTLP gRPC and HTTP are
+    # enabled; Jaeger and OpenCensus receivers are disabled to minimise
+    # the attack surface.
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            # -- OTLP gRPC listen address for Tempo.
+            endpoint: "0.0.0.0:4317"
+          http:
+            # -- OTLP HTTP listen address for Tempo.
+            endpoint: "0.0.0.0:4318"
+      jaeger:
+        protocols:
+          # -- Jaeger Thrift HTTP receiver -- disabled.
+          thrift_http: null
+          # -- Jaeger gRPC receiver -- disabled.
+          grpc: null
+      opencensus: null
+    # -- trace storage configuration. Defaults to local filesystem storage
+    # suitable for development and testing. For production, override with
+    # an S3, GCS, or Azure backend; see the Tempo documentation at
+    # https://grafana.com/docs/tempo/latest/configuration/storage/
+    storage:
+      trace:
+        # -- storage backend type. Supported values: local, s3, gcs, azure.
+        backend: local
+        local:
+          # -- filesystem path for completed trace blocks (local backend).
+          path: /var/tempo/traces
+        wal:
+          # -- filesystem path for the write-ahead log (local backend).
+          path: /var/tempo/wal
+  # -- CPU / memory resources for the Tempo pod. Sized for small
+  # deployments; raise limits for production traffic volumes.
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi

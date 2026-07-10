@@ -1,0 +1,37 @@
+{{- if .Values.registration.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.registration.configMap }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "dsc.labels" . | nindent 4 }}
+data:
+  init.sh: |-
+    {{- if .Values.registration.prepScript }}
+    # Prep script
+    {{ .Values.registration.prepScript }}
+    {{- end }}
+    {{- $registration := .Values.registration}}
+
+    {{- $values := .Values -}}
+    {{- range $index, $issuer := .Values.registration.issuer }}
+    curl -v -f -X 'POST' \
+      '{{ $registration.til }}/issuer' \
+      -H 'accept: */*' \
+      -H 'Content-Type: application/json' \
+      -d "{
+      \"did\": \"{{ $issuer.did }}\",
+      \"credentials\": [
+        {{- $last := sub (len $issuer.credentialTypes) 1 -}}
+        {{- range $index, $credentialType := $issuer.credentialTypes }}
+          {
+            \"credentialsType\": \"{{ $credentialType }}\"
+          }{{- if lt $index $last }},{{ end }}
+        {{- end }}
+      ]
+    }"
+    {{- end }}
+
+
+{{- end }}
