@@ -1,0 +1,37 @@
+{
+  "downloadedCount": 4,
+  "entities": [
+    {
+      "id": "urn:ngsi-ld:BuildingEnergyReading:BLD-001:MTR-001:20260501T000000",
+      "building": "BLD-001",
+      "meter": "MTR-001",
+      "energyKWh": 12.4,
+      "district": "Nanshan",
+      "source": "original"
+    },
+    {
+      "id": "urn:ngsi-ld:BuildingEnergyReading:BLD-001:MTR-001:20260501T010000",
+      "building": "BLD-001",
+      "meter": "MTR-001",
+      "energyKWh": 10.9,
+      "district": "Nanshan",
+      "source": "original"
+    },
+    {
+      "id": "urn:ngsi-ld:BuildingEnergyReading:BLD-002:MTR-014:20260501T000000",
+      "building": "BLD-002",
+      "meter": "MTR-014",
+      "energyKWh": 21.7,
+      "district": "Futian",
+      "source": "original"
+    },
+    {
+      "id": "urn:ngsi-ld:BuildingEnergyReading:BLD-DEMO:MTR-DEMO:20260703T032108Z",
+      "building": "BLD-DEMO",
+      "meter": "MTR-DEMO",
+      "energyKWh": 18.6,
+      "district": "Nanshan",
+      "source": "provider-local-demo"
+    }
+  ]
+}
