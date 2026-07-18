@@ -79,6 +79,8 @@ PROVIDER_DID = "did:web:energy-provider.example.org"
 # JWT / Auth
 # ============================================================
 
+# WARNING: The default JWT secret below is for local demo only. Always set
+# DEMO_JWT_SECRET to a strong random value in production or shared environments.
 JWT_SECRET = os.environ.get("DEMO_JWT_SECRET", "dssc-demo-secret-key-change-in-production")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = int(os.environ.get("DEMO_JWT_EXPIRY_HOURS", "2"))

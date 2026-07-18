@@ -20,6 +20,8 @@ from config import (
     CONSUMER_DID,
     DEFAULT_CLIENT_ID,
     DEFAULT_CLIENT_SECRET,
+    JWT_ALGORITHM,
+    JWT_SECRET,
     setup_logging,
 )
 
@@ -143,7 +145,7 @@ class DSSCConsumer:
         token_data = response.json()
         self.token = token_data["access_token"]
 
-        payload = jwt.decode(self.token, options={"verify_signature": False})
+        payload = jwt.decode(self.token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
 
         log.info("Authenticated: client=%s did=%s", self.client_id, self.consumer_did)
 

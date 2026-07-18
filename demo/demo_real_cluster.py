@@ -83,6 +83,8 @@ class TransferState:
 
 
 def get_client() -> httpx.Client:
+    # WARNING: verify=False is required for local k3s clusters using self-signed
+    # certificates. Never disable certificate verification in production.
     return httpx.Client(verify=False, timeout=30.0, follow_redirects=True)
 
 
@@ -284,6 +286,8 @@ def step_consumer_auth(client: httpx.Client) -> Optional[str]:
         token_endpoint = f"{ENDPOINTS['Consumer Keycloak']}/realms/{KC_REALM}/protocol/openid-connect/token"
     print(f"  Token Endpoint: {token_endpoint}")
 
+    # WARNING: password grant is used here only for local k3s demo convenience.
+    # In production, prefer client_credentials or Authorization Code flow with PKCE.
     # Get token
     resp = client.post(
         token_endpoint,
@@ -302,7 +306,8 @@ def step_consumer_auth(client: httpx.Client) -> Optional[str]:
         print(f"\n  ✅ Token 获取成功 (expires_in: {expires_in}s)")
         log.info("Consumer token obtained, expires_in=%ds", expires_in)
 
-        # Decode token (without verification) to show claims
+        # WARNING: signature verification is disabled here for local demo only.
+        # Production code should verify the token using Keycloak's JWKS endpoint.
         import jwt
         payload = jwt.decode(token, options={"verify_signature": False})
         print(f"     Subject: {payload.get('sub')}")

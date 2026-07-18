@@ -272,7 +272,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -689,7 +689,7 @@ async def root():
         },
         "demo_credentials": {
             "client_id": "city-analytics-lab",
-            "client_secret": "consumer-secret-123",
+            "note": "Demo credentials are defined in config.py; the secret is intentionally omitted here.",
         },
     }
 
