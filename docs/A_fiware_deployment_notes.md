@@ -45,6 +45,60 @@ export KUBECONFIG=/tmp/k3s.yaml
 
 ---
 
+## macOS 环境差异
+
+在 macOS 上运行本节 k3s 部署时，需额外注意以下差异。
+
+### Docker Desktop 配置
+
+- **Settings → General → Use virtualization framework**: 建议选择 Apple Virtualization framework。
+- **Settings → Resources**: CPU 建议 ≥ 4，内存建议 ≥ 16 GB；若部署 Provider + Consumer 双角色，推荐 24 GB 以上。
+- **Settings → General → Rosetta**: 开启 x86/AMD64 模拟，以运行官方 `linux/amd64` 容器镜像。
+
+### 与 Linux 部署的差异
+
+- Docker Desktop 在 macOS 上有一层额外虚拟化网络，端口 80/443 被系统占用概率较低，但 `host.docker.internal` 等网络行为可能与 Linux 不同。
+- 国内网络环境下，Docker Hub（`stoplight/prism`、`docker.io/fiware/*` 等）与 quay.io 官方镜像可能触发 `TLS handshake timeout` 或 `context deadline exceeded`。建议配置镜像加速器、镜像代理，或预先通过 `docker pull` + `docker save` / `docker load` 导入关键镜像。
+- Apple Silicon 芯片通过 Rosetta 2 模拟运行重型 Java 容器（Keycloak、Scorpio、TMForum API 等）时，可能出现启动慢、内存高或偶发网络中断。如频繁失败，可考虑 `demo/README.md` 中介绍的轻量白盒 Connector 方案。
+
+### 常用命令对照
+
+macOS 下除 Docker Desktop 自身操作外，其余命令与 Linux 基本一致：
+
+| 操作 | Linux | macOS |
+|---|---|---|
+| 查看端口占用 | `lsof -i :8000` | `lsof -i :8000`（相同） |
+| 杀掉端口进程 | `kill -9 <PID>` | `kill -9 <PID>`（相同） |
+| 启动 k3s | Docker 容器 | Docker Desktop 虚拟机内运行 |
+
+## Windows + WSL2 Ubuntu 部署
+
+Windows 环境下完整部署 FIWARE DSC 的推荐路径是 Docker Desktop + WSL2 Ubuntu + k3s。
+
+### 环境栈
+
+- 宿主机：Windows 10/11 + Docker Desktop（启用 WSL2 backend）
+- 子系统：WSL2 Ubuntu
+- 编排：k3s 运行在 WSL2 中
+- 访问方式：`*.127.0.0.1.nip.io:8443`
+
+### 与 Linux 部署的差异
+
+| 项目 | Linux（原生/Docker） | Windows + WSL2 |
+|---|---|---|
+| Docker 运行方式 | 原生 Docker 引擎或 Docker 容器 | Docker Desktop → WSL2 后端 |
+| k3s 运行位置 | 本机或 Docker 容器 | WSL2 Ubuntu 内部 |
+| 服务入口 | `*.127.0.0.1.nip.io`（默认 443） | `*.127.0.0.1.nip.io:8443` |
+| 本地数据路径 | 相对路径或容器内 | `~/DSSC_projects/...`（WSL2 文件系统） |
+
+### 完整流程
+
+该分支提供从 Provider 创建本地数据、上传到 Scorpio、发布 Product Offering，到 Consumer 通过 OID4VP 获取 Access Token 并下载受保护数据的完整流程。切换到 GitHub 分支查看详细步骤与脚本：
+
+```text
+https://github.com/ShenYouSOTA/DSSC-Toolbox/tree/feature/ytt-full-data-space-demo
+```
+
 ## 2. 技术选型
 
 ### 2.1 官方约束（FDSC Helm Chart 强制要求）

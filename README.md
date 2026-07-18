@@ -1,96 +1,177 @@
 # DSSC-Toolbox
 
-FIWARE Data Space Connector (FIWARE DSC) 项目文档 Wiki，由 zread 生成。
+Data Space Support Centre (DSSC) 工具链研究仓库，围绕统一场景 **Building Energy Consumption Data Product** 对四类数据空间工具进行调研、部署与集成验证。
 
-## 📖 文档查看方式
+## 研究范围
 
-### 方式一：Obsidian（推荐）
+本仓库按四个研究方向组织：
 
-1. 下载安装 [Obsidian](https://obsidian.md/)
-2. 打开 Obsidian → 选择「打开本地文件夹」
-3. 选择 `wiki/` 目录作为 Vault
-4. 即可浏览所有 `.md` 文档，支持双向链接、图谱视图
+| 组 | 方向 | 核心工具 | 仓库位置 |
+|---|---|---|---|
+| A 组 | Data Exchange / Connector | FIWARE Data Space Connector (FIWARE DSC) | `demo/`, `data-space-connector/`, `justfile` |
+| B 组 | Trust / Compliance | Gaia-X Compliance Service + Registry | `wiki/20-gaia-x-xin-ren-kuang-jia-ji-cheng.md`, `DSSC_Tool_Learning/` |
+| C 组 | Semantic Model Governance | Semantic Treehouse | `wiki/` 相关文档, `DSSC_Tool_Learning/` |
+| D 组 | Conformance / Validation | Interoperability Test Bed (ITB) + SEMIC SHACL Validator | `wiki/` 相关文档, `DSSC_Tool_Learning/` |
 
-### 方式二：Typora
+当前 A 组已完成可运行 Demo 和 k3s 本地部署记录；B/C/D 组主要沉淀在 Wiki 与学习资料中。
 
-1. 下载安装 [Typora](https://typora.io/)
-2. 直接打开 `wiki/` 目录下的任意 `.md` 文件
-3. 支持实时预览、导出 PDF/HTML
+## 统一研究场景
 
-### 方式三：VS Code + Markdown 插件
+场景：建筑小时级能耗数据产品发布与消费。
 
-1. 安装 [VS Code](https://code.visualstudio.com/)
-2. 安装插件 `Markdown Preview Enhanced` 或 `Markdown All in One`
-3. 打开 `wiki/` 目录，按 `Ctrl+Shift+V` 预览
+- Provider：Energy Data Provider Ltd.
+- Consumer：City Analytics Lab.
+- Data Space Authority：City Energy Data Space Authority.
+- 数据产品：Building Energy Consumption Dataset API (`building-energy-hourly-v1`).
 
-### 方式四：zread 恢复
+场景包位于 `DSSC_Tool_Learning/DSSC_Minimal_Energy_Scenario/`，包含：
 
-如果需要从 zread 恢复完整文档及版本历史：
+- 数据 payload：`data/building-energy-sample.json`
+- JSON-LD metadata：`metadata/data-product-valid.jsonld`、`metadata/data-product-invalid.jsonld`
+- OpenAPI 合同：`mock-api/openapi.yaml`
+- SHACL shapes：`shapes/building-energy-shapes.ttl`
+- Gaia-X 模板：`gaia-x/*.template.jsonld`
+
+## 运行环境选择
+
+本仓库支持三条主流运行路径，分别对应 Linux、macOS 与 Windows + WSL2 Ubuntu。
+
+### Linux（推荐）
+
+- 使用 `just up` 一键部署 k3s + FIWARE DSC。
+- 首次部署约 15–25 分钟，推荐配置 ≥ 8 核 CPU / 32 GB 内存。
+- 详见 `docs/A_fiware_deployment_notes.md` 与 `demo/README.md`。
+
+### macOS
+
+macOS 用户可通过 Docker Desktop 运行完整 k3s 部署，但 Apple Silicon 虚拟化开销较大，且国内网络环境下 Docker Hub / quay.io 官方镜像可能拉取超时。因此建议：
+
+- Docker Desktop 内存建议 ≥ 16 GB，启用 Apple Virtualization framework。
+- 资源受限或网络不稳定时，使用 `demo/README.md` 中介绍的轻量白盒 Connector 方案，无需 Kubernetes 即可本地运行。
+
+### Windows + WSL2 Ubuntu（完整部署）
+
+Windows 用户可通过 Docker Desktop + WSL2 Ubuntu 部署完整 FIWARE DSC k3s 环境：
+
+- 包含完整的官方组件：Scorpio、APISIX、OPA、ODRL-PAP、VCVerifier、TMForum API、Contract Management 等。
+- 服务入口使用 `*.127.0.0.1.nip.io:8443`。
+- 完整 Demo 覆盖 Provider 上传数据、发布 Offering、Consumer OID4VP 认证、受保护数据下载。
+- 详见 GitHub 分支 [`feature/ytt-full-data-space-demo`](https://github.com/ShenYouSOTA/DSSC-Toolbox/tree/feature/ytt-full-data-space-demo)。
+
+## 快速开始
+
+### 1. Mock Demo（无需 Kubernetes）
+
+纯 Python 模拟 Provider/Consumer 数据交换流程，包含认证、目录发现、合同协商、数据传输、数据获取。
 
 ```bash
-# 使用 zread 工具恢复文档
-zread restore <project-id>
+cd demo
+uv run python run_demo.py
 ```
 
-> 💡 zread 会保留文档的版本历史和元数据信息
+或使用 just：
 
-## 📁 目录结构
+```bash
+just demo-python
+```
+
+### 2. 真实集群 Demo（需要 k3s + Helm）
+
+一键启动 k3s、基础设施与 FIWARE DSC 应用组件，并运行完整数据交换流程：
+
+```bash
+just up
+just demo-cluster
+```
+
+注意：首次部署约 15-25 分钟，且当前仍需若干手动补丁（CA issuer、MongoDB ServiceAccount、keystore Secret 等）。建议按 `docs/A_fiware_deployment_notes.md` 分步操作，而非直接一键运行。
+
+## 目录结构
 
 ```
 DSSC-Toolbox/
-├── wiki/                        # Wiki 文档目录（32 篇）
-│   ├── 1-xiang-mu-gai-shu.md           # 项目概述
-│   ├── 2-kuai-su-bu-shu-zhi-nan.md     # 快速部署指南
-│   ├── 3-consumer-jiao-se-bu-shu.md    # Consumer 角色部署
-│   └── ...
-└── DSSC_Tool_Learning/          # 学习资料
-    ├── DSSC_Toolbox_Research_Task_Plan.md
-    └── DSSC_Toolbox_Scenario.md
+├── AGENTS.md                       # Agent 工作范围约定
+├── justfile                        # 集群管理、部署、Demo 一键命令
+├── README.md                       # 本文件
+├── demo/                           # A 组：Python 数据交换演示
+│   ├── config.py                   # 集中配置
+│   ├── provider_server.py          # FastAPI Mock Provider
+│   ├── consumer_client.py          # Consumer 客户端
+│   ├── run_demo.py                 # Mock Demo 编排器
+│   ├── demo_real_cluster.py        # Real Cluster Demo
+│   ├── ARCHITECTURE.md             # Demo 架构与通信流程
+│   ├── README.md                   # Demo 详细说明
+│   ├── data/                       # 演示数据（按 scenario 组织）
+│   └── logs/                       # 运行日志
+├── data-space-connector/           # FIWARE DSC 上游 Helm Chart 仓库
+│   ├── charts/                     # Helm Umbrella Chart
+│   ├── k3s/                        # 本地 k3s 部署配置
+│   ├── doc/                        # 官方部署与流程文档
+│   ├── it/                         # k3s 集成测试（Maven + Cucumber）
+│   └── README.md
+├── docs/                           # A 组部署与对比文档
+│   ├── A_fiware_deployment_notes.md # 部署笔记与踩坑记录
+│   ├── data_exchange_demo.md        # 数据交换 Demo 流程
+│   └── compare-TNO-TSG.md           # TNO TSG 对比分析
+├── DSSC_Tool_Learning/             # 统一学习资料与研究场景
+│   ├── DSSC_Toolbox_Research_Task_Plan.md
+│   ├── DSSC_Toolbox_Scenario.md
+│   └── DSSC_Minimal_Energy_Scenario/
+└── wiki/                           # 项目文档 Wiki（32 篇）
+    ├── 1-xiang-mu-gai-shu.md
+    ├── 2-kuai-su-bu-shu-zhi-nan.md
+    └── ...
 ```
 
-## 📝 文档索引
+## 常用命令
 
-| 编号 | 文档 | 主题 |
-|------|------|------|
-| 01 | 项目概述 | FIWARE DSC 核心架构与功能 |
-| 02 | 快速部署指南 | 部署流程与配置 |
-| 03 | Consumer 角色部署 | 消费端部署详解 |
-| 04 | Provider 角色部署 | 提供端部署详解 |
-| 05 | 双角色部署 | Consumer + Provider 合一 |
-| 06 | Operator 数据空间治理部署 | 运营方治理能力 |
-| 07 | 组件总览与模块职责 | 各组件功能说明 |
-| 08 | Helm Umbrella Chart 依赖图 | Helm 依赖关系 |
-| 09 | OID4VC 认证框架 | VCVerifier、Trusted Issuers |
-| 10 | H2M 服务调用流程 | Human-to-Machine 调用链 |
-| 11 | M2M 服务调用流程 | Machine-to-Machine 调用链 |
-| 12 | ODRL 授权框架 | APISIX + OPA + ODRL PAP |
-| 13 | TM Forum Open APIs | 合同管理流程 |
-| 14 | DSP 与 EDC 集成架构 | 数据空间协议集成 |
-| 15 | Catalog 合同协商传输 | 协商流程与协议 |
-| 16 | values.yaml 全局配置 | Helm 全局配置参考 |
-| 17 | Keycloak + OID4VCI | 凭证签发配置 |
-| 18 | 数字钱包兼容性 | 钱包集成方案 |
-| 19 | Secret 管理与安全 | 生产环境安全管理 |
-| 20 | Gaia-X 信任框架集成 | 信任框架对接 |
-| 21 | Marketplace Portal BAE | 门户集成 |
-| 22 | Central Marketplace | 中央市场集成 |
-| 23 | AWS Garnet 框架集成 | AWS Garnet 对接 |
-| 24 | OpenTelemetry 分布式追踪 | 追踪架构 |
-| 25 | Grafana Tempo 追踪后端 | 集群内部追踪 |
-| 26 | 各组件 OTel 接入说明 | 接入配置 |
-| 27 | Helm Lint 模板渲染验证 | 语法检查 |
-| 28 | Helm Unittest 套件 | 单元测试 |
-| 29 | K3s 集成测试 | Maven + Cucumber |
-| 30 | 8.x 版本说明 | 版本发布说明 |
-| 31 | 9.x 版本说明 | 破坏性变更 |
-| 32 | 10.x 版本说明 | Keycloak 迁移与 OID4VCI 重构 |
+| 命令 | 说明 |
+|------|------|
+| `just default` | 列出所有可用命令 |
+| `just demo-python` | 运行 Mock Demo |
+| `just demo-client` | 仅运行 Consumer 客户端 |
+| `just demo-cluster` | 运行真实集群 Demo |
+| `just demo-cluster-health` | 集群健康检查 |
+| `just up` | 一键启动 k3s + 基础设施 + 应用 |
+| `just down` | 一键停止并清理 |
+| `just smoke-test` | 检查所有 Pod 状态 |
+| `just pods` | 查看所有 Pod |
 
-## 🔗 相关链接
+## 文档索引
+
+### A 组（Connector / Data Exchange）
+
+- `demo/README.md` — Mock Demo 与 Real Cluster Demo 完整说明
+- `demo/ARCHITECTURE.md` — 架构与通信流程
+- `docs/A_fiware_deployment_notes.md` — k3s 部署笔记与踩坑记录
+- `docs/data_exchange_demo.md` — 数据交换 Demo 流程
+- `data-space-connector/README.md` — FIWARE DSC 官方说明
+
+### B / C / D 组
+
+- `DSSC_Tool_Learning/DSSC_Toolbox_Scenario.md` — 统一研究场景
+- `DSSC_Tool_Learning/DSSC_Toolbox_Research_Task_Plan.md` — 研究任务设计方案
+- `wiki/` — 32 篇项目文档，涵盖部署、认证、授权、Marketplace、Gaia-X、OpenTelemetry 等
+
+## 文档查看方式
+
+### 推荐：Obsidian
+
+1. 安装 [Obsidian](https://obsidian.md/)
+2. 打开本地文件夹，选择 `wiki/`
+3. 支持双向链接与图谱视图
+
+### 替代：Typora / VS Code
+
+- Typora：直接打开 `wiki/` 下任意 `.md` 文件
+- VS Code：安装 `Markdown Preview Enhanced` 或 `Markdown All in One` 后预览
+
+## 相关链接
 
 - [FIWARE Data Space Components](https://github.com/FIWARE)
 - [Eclipse Dataspace Components](https://eclipse-edc.github.io/docs/)
 - [FIWARE DSC 官方文档](https://fiware-dsc.readthedocs.io/)
 
-## 📄 许可证
+## 许可证
 
-本文档由 zread 自动生成，仅供学习参考。
+本仓库为研究学习用途，具体许可证见各子目录文件。

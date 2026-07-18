@@ -70,6 +70,56 @@ demo/
 | 用途 | 开发演示、流程理解 | 部署验证、集成测试 |
 | 启动命令 | `just demo-python` | `just demo-cluster` |
 
+## macOS 部署说明
+
+macOS 用户有两条路径运行本 Demo。
+
+### 方案一：完整 k3s 部署（与 Linux 一致）
+
+在 macOS 上可通过 Docker Desktop 运行 `just up` 与 `just demo-cluster`。但存在以下差异：
+
+- Docker Desktop 建议启用 Apple Virtualization framework，并分配 ≥ 16 GB 内存。
+- Apple Silicon（M1/M2/M3/M4）芯片通过 Rosetta 模拟 x86_64 容器，可能出现内存占用高、启动慢或镜像拉取超时的情况。
+- 国内网络环境下 Docker Hub / quay.io 镜像可能超时，建议配置镜像加速器或预先导入。
+
+### 方案二：轻量白盒 Connector（推荐）
+
+当 k3s 资源开销过大或官方镜像无法下载时，可启动伙伴贡献的 Python 轻量 Connector。它使用标准库 `http.server` 实现 Catalogue、Negotiation 状态机与 Authorization 校验，无需 Kubernetes 或 Docker。
+
+> 该方案原始交付报告位于仓库外 `buffer/DSSC-y/FIWARE FDF 数据空间连接器微服务：轻量化白盒全真模拟技术方案与部署交付报告.md`。
+
+假设已将 `connector.py` 放置于 `demo/` 目录，并已将场景文件 `data-product-valid.jsonld` 与 `building-energy-sample.json` 放在 `demo/metadata/` 与 `demo/data/` 下：
+
+```bash
+# 启动轻量 Connector
+cd demo
+python3 connector.py
+```
+
+然后在新终端中执行：
+
+```bash
+# 1. 发布 Data Offering
+curl -X POST http://127.0.0.1:8080/catalogue/v1/offerings \
+  -H "Content-Type: application/ld+json" \
+  -d @metadata/data-product-valid.jsonld
+
+# 2. 目录发现
+curl http://127.0.0.1:8080/catalogue/v1/offerings
+
+# 3. 契约协商
+curl -X POST http://127.0.0.1:8080/negotiation/v1/request \
+  -H "Content-Type: application/json" \
+  -d '{"datasetId":"building-energy-hourly-v1"}'
+
+# 4. 无 Token 访问数据（应返回 401）
+curl http://127.0.0.1:8080/data/building-energy-hourly-v1
+
+# 5. 携带 Gaia-X 合规 Token 访问数据
+curl http://127.0.0.1:8080/data/building-energy-hourly-v1 \
+  -H "Authorization: Bearer GaiaX-Valid-Credential-Token-From-B"
+```
+
 ## 演示流程
 
 ### Mock Demo 流程 (7 步)
